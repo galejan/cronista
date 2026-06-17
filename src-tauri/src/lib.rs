@@ -469,6 +469,17 @@ mod tests {
     }
 
     #[test]
+    fn test_cargar_indice_empty_path() {
+        let result = cargar_indice("".to_string());
+        assert!(result.is_err(), "Expected Err for empty path");
+        let err = result.unwrap_err();
+        assert!(
+            !err.is_empty(),
+            "Error message should not be empty for empty path"
+        );
+    }
+
+    #[test]
     fn test_cargar_indice_file_not_found() {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
@@ -512,6 +523,27 @@ mod tests {
             read_back, content,
             "UTF-8 round-trip failed: content mismatch"
         );
+    }
+
+    #[test]
+    fn test_crear_proyecto_trailing_separator() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        // Append trailing separator — path.normalize() or trim_end_matches should handle it
+        let path_with_slash = format!("{}/", dir.path().to_str().unwrap());
+
+        let result = crear_proyecto(path_with_slash, "Trailing Test".to_string());
+        assert!(result.is_ok(), "crear_proyecto with trailing separator failed: {:?}", result);
+
+        // All directories must exist
+        assert!(dir.path().join(".config").exists(), ".config missing");
+        assert!(dir.path().join("capitulos").exists(), "capitulos missing");
+        assert!(dir.path().join("personajes").exists(), "personajes missing");
+        assert!(dir.path().join("notas").exists(), "notas missing");
+
+        // metadata.json must exist and be valid JSON
+        let meta = fs::read_to_string(dir.path().join(".config").join("metadata.json"))
+            .expect("metadata.json should exist");
+        let _: serde_json::Value = serde_json::from_str(&meta).expect("metadata.json should be valid JSON");
     }
 
     #[test]

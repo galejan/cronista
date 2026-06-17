@@ -51,9 +51,9 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Frontend Skeleton (PR 3)
 
-- [ ] 3.1 Write `src/App.svelte`: 60/40 CSS Grid layout (editor left 60%, sidebar right 40%)
-- [ ] 3.2 Write `src/lib/tauri.ts`: typed `invoke()` wrappers for all 5 commands
-- [ ] 3.3 Write `src/lib/checkpoint.ts`: inactivity timer skeleton (30min idle, ≥100 words — deferred to future change)
+- [x] 3.1 Write `src/App.svelte`: 60/40 CSS Grid layout (editor left 60%, sidebar right 40%)
+- [x] 3.2 Write `src/lib/tauri.ts`: typed `invoke()` wrappers for all 5 commands
+- [x] 3.3 Write `src/lib/checkpoint.ts`: inactivity timer skeleton (30min idle, ≥100 words — deferred to future change)
 
 ## Phase 4: Testing (PR 3)
 

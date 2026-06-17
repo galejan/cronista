@@ -1,156 +1,141 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  let sidebarVisible = $state(true);
 
-  let name = $state("");
-  let greetMsg = $state("");
-
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.ctrlKey && e.key === "b") {
+      e.preventDefault();
+      sidebarVisible = !sidebarVisible;
+    }
   }
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<svelte:window onkeydown={handleKeydown} />
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
-  </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
+<div
+  class="app-layout"
+  class:sidebar-collapsed={!sidebarVisible}
+>
+  <!-- Sidebar (40% when visible) -->
+  <aside class="sidebar">
+    <nav class="tabs">
+      <button class="tab active">Capítulos</button>
+      <button class="tab">Personajes</button>
+      <button class="tab">Notas</button>
+    </nav>
+    <div class="sidebar-content">
+      <p class="text-gray-500 dark:text-gray-400 text-sm p-4">
+        Seleccioná un capítulo de la lista para empezar a editar.
+      </p>
+    </div>
+  </aside>
 
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
-</main>
+  <!-- Editor (60% when visible, 100% when sidebar collapsed) -->
+  <main class="editor">
+    <p class="placeholder">
+      Seleccioná un capítulo para empezar a escribir
+    </p>
+  </main>
+</div>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+  .app-layout {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    height: 100vh;
+    transition: grid-template-columns 300ms ease;
   }
 
-  a:hover {
-    color: #24c8db;
+  .app-layout.sidebar-collapsed {
+    grid-template-columns: 0% 100%;
   }
 
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
+  .sidebar {
+    overflow: hidden;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
   }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
 
+  @media (prefers-color-scheme: dark) {
+    .sidebar {
+      border-right-color: #334155;
+    }
+  }
+
+  .sidebar-collapsed .sidebar {
+    border-right: none;
+  }
+
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .tabs {
+      border-bottom-color: #334155;
+    }
+  }
+
+  .tab {
+    flex: 1;
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748b;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 150ms, border-color 150ms;
+  }
+
+  .tab:hover {
+    color: #1e293b;
+  }
+
+  .tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .tab {
+      color: #94a3b8;
+    }
+    .tab:hover {
+      color: #e2e8f0;
+    }
+    .tab.active {
+      color: #60a5fa;
+      border-bottom-color: #60a5fa;
+    }
+  }
+
+  .sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .editor {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .placeholder {
+    color: #94a3b8;
+    font-size: 1.125rem;
+    font-style: italic;
+    user-select: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .placeholder {
+      color: #64748b;
+    }
+  }
 </style>

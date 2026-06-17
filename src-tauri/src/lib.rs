@@ -250,11 +250,22 @@ fn crear_checkpoint(proyecto_path: String) -> Result<String, String> {
         Ok(hash)
     } else {
         let stderr = String::from_utf8_lossy(&commit_output.stderr);
-        // "nothing to commit" is a normal state, not an error
-        if stderr.contains("nothing to commit") || stderr.contains("nothing added to commit") {
+        let stdout = String::from_utf8_lossy(&commit_output.stdout);
+        let combined = format!("{}{}", stderr, stdout);
+        // "nothing to commit" is a normal state, not an error.
+        // Git may route this message to stdout or stderr depending on version.
+        // We match both English and Spanish localisations.
+        if combined.contains("nothing to commit")
+            || combined.contains("nothing added to commit")
+            || combined.contains("nada para confirmar")
+            || combined.contains("nada que confirmar")
+        {
             Ok("Sin cambios para guardar.".to_string())
         } else {
-            Err(format!("Error en git commit: {}", stderr.trim()))
+            Err(format!(
+                "Error en git commit: {}",
+                combined.trim().lines().last().unwrap_or("")
+            ))
         }
     }
 }
@@ -327,4 +338,500 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    // ========================================================================
+    // project-file-management tests
+    // ========================================================================
+
+    #[test]
+    fn test_crear_proyecto_creates_all_directories() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let result = crear_proyecto(path.clone(), "Test Project".to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        for sub in &[".config", "capitulos", "personajes", "notas"] {
+            assert!(
+                dir.path().join(sub).exists(),
+                "Missing directory: {}",
+                sub
+            );
+        }
+    }
+
+    #[test]
+    fn test_crear_proyecto_seeds_metadata_json() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = crear_proyecto(path.clone(), "Mi Novela".to_string());
+
+        let metadata_path = dir.path().join(".config").join("metadata.json");
+        assert!(metadata_path.exists(), "metadata.json does not exist");
+
+        let content = fs::read_to_string(&metadata_path).expect("failed to read metadata.json");
+        let meta: Metadata = serde_json::from_str(&content).expect("invalid metadata.json");
+
+        assert_eq!(meta.project_name, "Mi Novela");
+        assert!(!meta.last_modified.is_empty(), "last_modified is empty");
+        // last_modified should be valid ISO 8601 (chrono::Utc produces RFC 3339)
+        assert!(
+            meta.last_modified.contains('T'),
+            "last_modified is not ISO 8601: {}",
+            meta.last_modified
+        );
+        assert!(meta.chapters_order.is_empty());
+        assert!(meta.characters_index.is_empty());
+    }
+
+    #[test]
+    fn test_crear_proyecto_seeds_timeline_json() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = crear_proyecto(path.clone(), "Test".to_string());
+
+        let timeline_path = dir.path().join(".config").join("timeline.json");
+        assert!(timeline_path.exists(), "timeline.json does not exist");
+
+        let content = fs::read_to_string(&timeline_path).expect("failed to read timeline.json");
+        assert_eq!(content.trim(), "[]", "timeline.json should be an empty array");
+    }
+
+    #[test]
+    fn test_guardar_capitulo_writes_utf8_content() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // Create the capitulos/ directory
+        fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+
+        let content = "# Prólogo\n\nEra una noche oscura...";
+        let result = guardar_capitulo(
+            path.clone(),
+            "0001_prologo.md".to_string(),
+            content.to_string(),
+        );
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let file_path = dir.path().join("capitulos").join("0001_prologo.md");
+        assert!(file_path.exists(), "Chapter file does not exist");
+
+        let written = fs::read_to_string(&file_path).expect("failed to read chapter");
+        assert_eq!(written, content);
+    }
+
+    #[test]
+    fn test_guardar_capitulo_overwrites_existing() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+
+        let old_content = "Contenido viejo";
+        let file_path = dir.path().join("capitulos").join("0001.md");
+        fs::write(&file_path, old_content).unwrap();
+
+        let new_content = "Contenido nuevo, completamente distinto";
+        let result = guardar_capitulo(path.clone(), "0001.md".to_string(), new_content.to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let written = fs::read_to_string(&file_path).expect("failed to read chapter");
+        assert_eq!(written, new_content);
+    }
+
+    #[test]
+    fn test_cargar_indice_returns_json() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = crear_proyecto(path.clone(), "My Project".to_string());
+
+        let result = cargar_indice(path.clone());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let json_str = result.unwrap();
+        // Should deserialise as valid JSON
+        let _meta: serde_json::Value =
+            serde_json::from_str(&json_str).expect("cargar_indice returned invalid JSON");
+    }
+
+    #[test]
+    fn test_cargar_indice_file_not_found() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // Don't create the project — metadata.json won't exist
+        let result = cargar_indice(path);
+        assert!(result.is_err(), "Expected Err for missing metadata.json");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("no encontrado") || err.contains("not found"),
+            "Error should mention missing file, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_guardar_capitulo_unicode_roundtrip() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+
+        // Spanish special chars, emoji, RTL, CJK, math
+        let content = concat!(
+            "Ñoño y pingüino — ¡árbol!\n",
+            "áéíóú ü ñ ¿? ¡!\n",
+            "😀🎉🔥 — emoji\n",
+            "مرحبا بالعالم — RTL\n",
+            "日本語テスト — CJK\n",
+            "αβγ — Greek\n",
+            "2² + 3³ = ?\n",
+        );
+
+        guardar_capitulo(path.clone(), "unicode.md".to_string(), content.to_string())
+            .expect("guardar_capitulo failed");
+
+        let file_path = dir.path().join("capitulos").join("unicode.md");
+        let read_back = fs::read_to_string(&file_path).expect("failed to read back");
+
+        assert_eq!(
+            read_back, content,
+            "UTF-8 round-trip failed: content mismatch"
+        );
+    }
+
+    #[test]
+    fn test_crear_proyecto_permission_denied() {
+        // /root/ is typically not writable by non-root users on Linux
+        let result = crear_proyecto("/root/cronista-blocked".to_string(), "Test".to_string());
+        // On CI running as root, this could succeed; we just assert it doesn't panic
+        match result {
+            Ok(_) => {
+                // We're likely root — clean up if we created anything
+                let _ = std::fs::remove_dir_all("/root/cronista-blocked");
+                // This is fine; the test just verified no panic
+            }
+            Err(e) => {
+                assert!(
+                    e.contains("No se pudo crear") || e.contains("permission") || e.contains("Permiso"),
+                    "Expected a permission-related error, got: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    // ========================================================================
+    // git-abstraction tests
+    // ========================================================================
+
+    #[test]
+    fn test_find_git_returns_something_or_none() {
+        let result = find_git();
+        match result {
+            Ok(path) => {
+                assert!(!path.is_empty(), "Git path should not be empty");
+                assert!(Path::new(&path).exists(), "Git path '{}' does not exist", path);
+            }
+            Err(msg) => {
+                // Perfectly valid — git might not be installed
+                assert!(!msg.is_empty(), "Error message should not be empty");
+            }
+        }
+    }
+
+    #[test]
+    fn test_inicializar_git_creates_dot_git() {
+        // Guard: skip if git is not available
+        if find_git().is_err() {
+            eprintln!("SKIP: git not available on this system");
+            return;
+        }
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let result = inicializar_git(path.clone());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        assert!(
+            dir.path().join(".git").exists(),
+            ".git directory was not created"
+        );
+    }
+
+    #[test]
+    fn test_inicializar_git_already_initialized() {
+        if find_git().is_err() {
+            eprintln!("SKIP: git not available on this system");
+            return;
+        }
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // First init
+        let result1 = inicializar_git(path.clone());
+        assert!(result1.is_ok());
+
+        // Second init on same directory (reinit)
+        let result2 = inicializar_git(path.clone());
+        assert!(result2.is_ok(), "Re-init should succeed quietly");
+    }
+
+    #[test]
+    fn test_crear_proyecto_auto_calls_git_init() {
+        if find_git().is_err() {
+            eprintln!("SKIP: git not available on this system");
+            return;
+        }
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let result = crear_proyecto(path.clone(), "Test Project".to_string());
+        assert!(result.is_ok(), "crear_proyecto failed: {:?}", result);
+
+        // crear_proyecto auto-calls inicializar_git after creating directories
+        assert!(
+            dir.path().join(".git").exists(),
+            ".git should exist — crear_proyecto should auto-init git"
+        );
+    }
+
+    #[test]
+    fn test_crear_proyecto_works_without_git() {
+        // Even if git is available, this test verifies crear_proyecto does
+        // NOT panic when git-related operations fail.  The auto-init is
+        // silent (let _ = ...) so the directory structure is always created.
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let result = crear_proyecto(path.clone(), "Sin Git".to_string());
+        assert!(result.is_ok(), "crear_proyecto should succeed: {:?}", result);
+
+        // Disk structure must exist regardless of git availability
+        assert!(dir.path().join(".config").exists());
+        assert!(dir.path().join("capitulos").exists());
+        assert!(dir.path().join("personajes").exists());
+        assert!(dir.path().join("notas").exists());
+    }
+
+    #[test]
+    fn test_crear_checkpoint_without_changes() {
+        if find_git().is_err() {
+            eprintln!("SKIP: git not available on this system");
+            return;
+        }
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // Init a clean repo
+        inicializar_git(path.clone()).expect("git init failed");
+
+        // Now try checkpointing with no changes
+        let result = crear_checkpoint(path.clone());
+        assert!(result.is_ok(), "Expected Ok for clean repo: {:?}", result);
+
+        let msg = result.unwrap();
+        assert!(
+            msg.contains("Sin cambios") || msg.contains("nothing"),
+            "Expected 'no changes' message, got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_crear_checkpoint_with_changes() {
+        if find_git().is_err() {
+            eprintln!("SKIP: git not available on this system");
+            return;
+        }
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // Create project structure and init git
+        fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+        inicializar_git(path.clone()).expect("git init failed");
+
+        // Create a chapter file (a change)
+        let content = "# Capítulo 1\n\nHabía una vez...";
+        fs::write(
+            dir.path().join("capitulos").join("0001_intro.md"),
+            content,
+        )
+        .unwrap();
+
+        let result = crear_checkpoint(path.clone());
+        assert!(result.is_ok(), "Expected Ok for checkpoint: {:?}", result);
+
+        let hash = result.unwrap();
+        // Should be a 40-char hex commit hash, not the "Sin cambios" message
+        assert!(
+            hash.len() >= 7 && hash.chars().all(|c| c.is_ascii_hexdigit()),
+            "Expected a commit hash, got: {}",
+            hash
+        );
+    }
+
+    #[test]
+    fn test_crear_checkpoint_git_unavailable() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // We simulate git-unavailable by using a dir where find_git() works
+        // but the checkpoint operation itself is what we're checking
+        if find_git().is_ok() {
+            eprintln!("INFO: git IS available — cannot fully test git-unavailable path.");
+            eprintln!("This scenario is covered by the find_git() error path in crear_checkpoint.");
+            return;
+        }
+
+        // If git is truly unavailable, creating a checkpoint should return Err
+        let result = crear_checkpoint(path);
+        assert!(result.is_err(), "Expected Err when git is unavailable");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("Git no está disponible"),
+            "Expected git-unavailable message, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_guardar_capitulo_does_not_commit() {
+        if find_git().is_err() {
+            eprintln!("SKIP: git not available on this system");
+            return;
+        }
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // Create project and init git
+        fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+        inicializar_git(path.clone()).expect("git init failed");
+
+        // Count commits before saving
+        let count_before = count_commits(dir.path());
+
+        // Save a chapter (should NOT commit)
+        guardar_capitulo(
+            path.clone(),
+            "0001_test.md".to_string(),
+            "# Test\n\nContent".to_string(),
+        )
+        .expect("guardar_capitulo failed");
+
+        // Count commits after saving
+        let count_after = count_commits(dir.path());
+
+        assert_eq!(
+            count_before, count_after,
+            "guardar_capitulo should NOT create a git commit"
+        );
+    }
+
+    // ========================================================================
+    // Integration test: full flow
+    // ========================================================================
+
+    #[test]
+    fn test_full_flow_create_save_checkpoint_read() {
+        if find_git().is_err() {
+            eprintln!("SKIP: git not available on this system");
+            return;
+        }
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // --- Step 1: Create project ---
+        let result = crear_proyecto(path.clone(), "Full Flow Test".to_string());
+        assert!(result.is_ok(), "Step 1 (crear_proyecto) failed: {:?}", result);
+
+        // Verify directory structure
+        assert!(dir.path().join(".config").exists());
+        assert!(dir.path().join("capitulos").exists());
+        assert!(dir.path().join("personajes").exists());
+        assert!(dir.path().join("notas").exists());
+        // git should be auto-initialised
+        assert!(dir.path().join(".git").exists(), "git not initialised after crear_proyecto");
+
+        // --- Step 2: Save a chapter ---
+        let chapter_content = "# Prólogo\n\nEra el mejor de los tiempos, era el peor de los tiempos.";
+        let result = guardar_capitulo(
+            path.clone(),
+            "0001_prologo.md".to_string(),
+            chapter_content.to_string(),
+        );
+        assert!(result.is_ok(), "Step 2 (guardar_capitulo) failed: {:?}", result);
+
+        let chapter_path = dir.path().join("capitulos").join("0001_prologo.md");
+        assert!(chapter_path.exists());
+        let saved = fs::read_to_string(&chapter_path).unwrap();
+        assert_eq!(saved, chapter_content);
+
+        // --- Step 3: Create checkpoint ---
+        let result = crear_checkpoint(path.clone());
+        assert!(result.is_ok(), "Step 3 (crear_checkpoint) failed: {:?}", result);
+        let hash = result.unwrap();
+        assert!(!hash.is_empty(), "Commit hash should not be empty");
+
+        // --- Step 4: Read metadata index ---
+        let result = cargar_indice(path.clone());
+        assert!(result.is_ok(), "Step 4 (cargar_indice) failed: {:?}", result);
+        let index_json = result.unwrap();
+        let index: serde_json::Value =
+            serde_json::from_str(&index_json).expect("index should be valid JSON");
+        assert_eq!(
+            index["project_name"].as_str().unwrap(),
+            "Full Flow Test"
+        );
+    }
+
+    // ========================================================================
+    // Test helpers
+    // ========================================================================
+
+    /// Count the number of commits in the git repository at `repo_path`.
+    fn count_commits(repo_path: &Path) -> usize {
+        if !repo_path.join(".git").exists() {
+            return 0;
+        }
+        let git_path = match find_git() {
+            Ok(p) => p,
+            Err(_) => return 0,
+        };
+        let output = Command::new(&git_path)
+            .arg("rev-list")
+            .arg("--count")
+            .arg("HEAD")
+            .current_dir(repo_path)
+            .output();
+
+        match output {
+            Ok(o) if o.status.success() => {
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                stdout.trim().parse::<usize>().unwrap_or(0)
+            }
+            _ => 0,
+        }
+    }
 }

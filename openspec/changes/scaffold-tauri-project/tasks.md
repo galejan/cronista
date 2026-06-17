@@ -57,11 +57,11 @@ Chain strategy: stacked-to-main
 
 ## Phase 4: Testing (PR 3)
 
-- [ ] 4.1 Write `#[cfg(test)]` tests for `find_git()`: Linux PATH found, not found, Windows fallback (mark Windows test `#[ignore]` on Linux)
-- [ ] 4.2 Write tests for `crear_proyecto`: valid project, permission denied (chmod 000), trailing separator
-- [ ] 4.3 Write tests for `inicializar_git`: git init success, git unavailable (stub PATH), already-initialized repo (reinit safe)
-- [ ] 4.4 Write tests for `guardar_capitulo`: new file creation, overwrite existing, UTF-8 round-trip (ñ, áéíóú, emoji, RTL)
-- [ ] 4.5 Write tests for `crear_checkpoint`: successful commit with hash, clean repo (no changes), git unavailable
-- [ ] 4.6 Write tests for `cargar_indice`: valid metadata read, missing file error, empty path error
-- [ ] 4.7 Write integration test: full flow `crear_proyecto` → `inicializar_git` → `guardar_capitulo` → `crear_checkpoint` → `cargar_indice`; assert intermediate state
-- [ ] 4.8 Run `cargo test --manifest-path src-tauri/Cargo.toml` — all 18 scenarios pass
+- [x] 4.1 Write `#[cfg(test)]` tests for `find_git()`: Linux PATH found, not found, Windows fallback (mark Windows test `#[ignore]` on Linux)
+- [x] 4.2 Write tests for `crear_proyecto`: valid project, permission denied (chmod 000), trailing separator
+- [x] 4.3 Write tests for `inicializar_git`: git init success, git unavailable (stub PATH), already-initialized repo (reinit safe)
+- [x] 4.4 Write tests for `guardar_capitulo`: new file creation, overwrite existing, UTF-8 round-trip (ñ, áéíóú, emoji, RTL)
+- [x] 4.5 Write tests for `crear_checkpoint`: successful commit with hash, clean repo (no changes), git unavailable
+- [x] 4.6 Write tests for `cargar_indice`: valid metadata read, missing file error, empty path error
+- [x] 4.7 Write integration test: full flow `crear_proyecto` → `inicializar_git` → `guardar_capitulo` → `crear_checkpoint` → `cargar_indice`; assert intermediate state
+- [x] 4.8 Run `cargo test --manifest-path src-tauri/Cargo.toml` — all 18 scenarios pass

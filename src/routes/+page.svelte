@@ -24,6 +24,7 @@
   } from "$lib/tauri";
   import { documentDir } from "@tauri-apps/api/path";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { PhysicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
   import { open } from "@tauri-apps/plugin-dialog";
 
   let sidebarPct = $state(40);          // current sidebar width in %
@@ -84,11 +85,11 @@
       const storedPos = localStorage.getItem("cronista-window-position");
       if (storedSize) {
         const { width, height } = JSON.parse(storedSize);
-        await win.setSize({ width, height } as unknown as any);
+        await win.setSize(new PhysicalSize(width, height));
       }
       if (storedPos) {
         const { x, y } = JSON.parse(storedPos);
-        await win.setPosition({ x, y } as unknown as any);
+        await win.setPosition(new PhysicalPosition(x, y));
       }
     } catch {
       // Not running inside Tauri.
@@ -599,6 +600,42 @@
     }
   });
 
+  // ── Persist current project path ─────────────────────────────
+  $effect(() => {
+    if (projectPath) {
+      localStorage.setItem("cronista-last-project", projectPath);
+    }
+  });
+
+  // ── Auto-reopen last project on startup ──────────────────────
+  let reopeningStatus = $state("");
+  $effect(() => {
+    const lastPath = localStorage.getItem("cronista-last-project");
+    if (!lastPath) return;
+
+    reopeningStatus = t("setup.reopening");
+    console.log("[cronista] Trying to reopen last project:", lastPath);
+
+    cargarIndice(lastPath)
+      .then((raw) => {
+        const meta = JSON.parse(raw);
+        projectPath = lastPath;
+        chapters = meta.chapters_order ?? [];
+        console.log("[cronista] Project reopened:", meta.project_name, chapters);
+
+        if (chapters.length > 0) {
+          return cargarCapituloActual(chapters[0]);
+        }
+      })
+      .catch((e) => {
+        console.error("[cronista] Failed to reopen last project:", e);
+        localStorage.removeItem("cronista-last-project");
+      })
+      .finally(() => {
+        reopeningStatus = "";
+      });
+  });
+
   // ── Keyboard shortcuts ──────────────────────────────────────
   function handleKeydown(e: KeyboardEvent) {
     // Ctrl+B — toggle sidebar collapse
@@ -662,6 +699,7 @@
       chapters = [];
       activeChapter = "";
       editorContent = "";
+      localStorage.removeItem("cronista-last-project");
       crearCapituloNuevo();
       return;
     }
@@ -1046,6 +1084,11 @@
   <!-- Editor area (60 % when visible, 100 % when sidebar collapsed) -->
   <main class="editor">
     {#if !projectPath}
+      {#if reopeningStatus}
+        <div class="setup-prompt">
+          <p class="setup-text">{reopeningStatus}</p>
+        </div>
+      {:else}
       <!-- First launch: prompt for project path -->
       <div class="setup-prompt">
         <p class="setup-text">{t("setup.selectFolder")}</p>
@@ -1064,6 +1107,7 @@
           </button>
         </div>
       </div>
+      {/if}
     {:else}
       <!-- Toolbar + Editor -->
       <div class="editor-pane">

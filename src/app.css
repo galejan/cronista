@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* ── Base ──────────────────────────────────────────────────────── */
+
+html.dark {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
 /* ── ProseMirror Editor Typography ────────────────────────────── */
 
 .ProseMirror {
@@ -45,4 +52,16 @@
 
 .ProseMirror p:last-child {
   margin-bottom: 0;
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────── */
+
+.dark .ProseMirror {
+  color: #e2e8f0;
+}
+
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3 {
+  color: #f1f5f9;
 }

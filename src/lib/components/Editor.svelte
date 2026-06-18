@@ -207,37 +207,35 @@
 
   /* ── Dark mode ─────────────────────────────────────────────── */
 
-  @media (prefers-color-scheme: dark) {
-    .bubble-menu {
-      background: #1e293b;
-      border-color: #334155;
-    }
+  :global(.dark) .bubble-menu {
+    background: #1e293b;
+    border-color: #334155;
+  }
 
-    .bubble-menu button {
-      color: #94a3b8;
-    }
+  :global(.dark) .bubble-menu button {
+    color: #94a3b8;
+  }
 
-    .bubble-menu button:hover {
-      background: #334155;
-    }
+  :global(.dark) .bubble-menu button:hover {
+    background: #334155;
+  }
 
-    .bubble-menu button.active {
-      background: #3b82f6;
-      color: #ffffff;
-    }
+  :global(.dark) .bubble-menu button.active {
+    background: #3b82f6;
+    color: #ffffff;
+  }
 
-    .menu-divider {
-      background: #334155;
-    }
+  :global(.dark) .menu-divider {
+    background: #334155;
+  }
 
-    .bubble-menu select {
-      background: #1e293b;
-      border-color: #334155;
-      color: #94a3b8;
-    }
+  :global(.dark) .bubble-menu select {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
 
-    .bubble-menu select:focus {
-      border-color: #60a5fa;
-    }
+  :global(.dark) .bubble-menu select:focus {
+    border-color: #60a5fa;
   }
 </style>

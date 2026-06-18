@@ -10,6 +10,23 @@
   } from "$lib/tauri";
 
   let sidebarVisible = $state(true);
+  let theme = $state<"light" | "dark">("light");
+
+  // ── Persist theme in localStorage, default to system preference ──
+  $effect(() => {
+    const stored = localStorage.getItem("cronista-theme");
+    if (stored === "light" || stored === "dark") {
+      theme = stored;
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark";
+    }
+  });
+
+  // ── Apply dark class to <html> whenever theme changes ──────────
+  $effect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("cronista-theme", theme);
+  });
 
   // ── Editor & project state ──────────────────────────────────
   let projectPath = $state("");
@@ -195,6 +212,13 @@
             {#if activeChapter}
               <span class="chapter-label">{activeChapter}</span>
             {/if}
+            <button
+              class="theme-toggle"
+              onclick={() => (theme = theme === "light" ? "dark" : "light")}
+              title={theme === "light" ? "Activar tema oscuro" : "Activar tema claro"}
+            >
+              {theme === "light" ? "🌙" : "☀️"}
+            </button>
             <span
               class="save-indicator"
               class:saving={saveStatus === "saving"}
@@ -246,10 +270,8 @@
     min-width: 0;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .sidebar {
-      border-right-color: #334155;
-    }
+  :global(.dark) .sidebar {
+    border-right-color: #334155;
   }
 
   .sidebar-collapsed .sidebar {
@@ -261,10 +283,8 @@
     border-bottom: 1px solid #e2e8f0;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .tabs {
-      border-bottom-color: #334155;
-    }
+  :global(.dark) .tabs {
+    border-bottom-color: #334155;
   }
 
   .tab {
@@ -289,17 +309,15 @@
     border-bottom-color: #3b82f6;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .tab {
-      color: #94a3b8;
-    }
-    .tab:hover {
-      color: #e2e8f0;
-    }
-    .tab.active {
-      color: #60a5fa;
-      border-bottom-color: #60a5fa;
-    }
+  :global(.dark) .tab {
+    color: #94a3b8;
+  }
+  :global(.dark) .tab:hover {
+    color: #e2e8f0;
+  }
+  :global(.dark) .tab.active {
+    color: #60a5fa;
+    border-bottom-color: #60a5fa;
   }
 
   .sidebar-content {
@@ -356,17 +374,15 @@
     font-weight: 500;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .chapter-link {
-      color: #94a3b8;
-    }
-    .chapter-link:hover {
-      background: #1e293b;
-    }
-    .chapter-link.active-chapter {
-      background: #1e3a5f;
-      color: #60a5fa;
-    }
+  :global(.dark) .chapter-link {
+    color: #94a3b8;
+  }
+  :global(.dark) .chapter-link:hover {
+    background: #1e293b;
+  }
+  :global(.dark) .chapter-link.active-chapter {
+    background: #1e3a5f;
+    color: #60a5fa;
   }
 
   .btn-load {
@@ -385,15 +401,13 @@
     background: #f8fafc;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .btn-load {
-      background: #1e293b;
-      border-color: #334155;
-      color: #94a3b8;
-    }
-    .btn-load:hover {
-      border-color: #60a5fa;
-    }
+  :global(.dark) .btn-load {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+  :global(.dark) .btn-load:hover {
+    border-color: #60a5fa;
   }
 
   /* ── Editor area ───────────────────────────────────────────── */
@@ -420,10 +434,8 @@
     font-style: italic;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .setup-text {
-      color: #64748b;
-    }
+  :global(.dark) .setup-text {
+    color: #64748b;
   }
 
   .btn-primary {
@@ -461,11 +473,9 @@
     gap: 0.75rem;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .editor-toolbar {
-      background: #0f172a;
-      border-bottom-color: #334155;
-    }
+  :global(.dark) .editor-toolbar {
+    background: #0f172a;
+    border-bottom-color: #334155;
   }
 
   .toolbar-left,
@@ -485,10 +495,8 @@
     white-space: nowrap;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .project-label {
-      color: #e2e8f0;
-    }
+  :global(.dark) .project-label {
+    color: #e2e8f0;
   }
 
   .chapter-label {
@@ -500,10 +508,8 @@
     white-space: nowrap;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .chapter-label {
-      color: #94a3b8;
-    }
+  :global(.dark) .chapter-label {
+    color: #94a3b8;
   }
 
   .toolbar-btn {
@@ -523,15 +529,39 @@
     border-color: #3b82f6;
   }
 
-  @media (prefers-color-scheme: dark) {
-    .toolbar-btn {
-      background: #1e293b;
-      border-color: #334155;
-      color: #60a5fa;
-    }
-    .toolbar-btn:hover {
-      background: #1e3a5f;
-    }
+  :global(.dark) .toolbar-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #60a5fa;
+  }
+  :global(.dark) .toolbar-btn:hover {
+    background: #1e3a5f;
+  }
+
+  /* ── Theme toggle ─────────────────────────────────────────── */
+  .theme-toggle {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.25rem;
+    background: #ffffff;
+    font-size: 1rem;
+    cursor: pointer;
+    line-height: 1;
+    transition: background 120ms, border-color 120ms;
+  }
+
+  .theme-toggle:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+
+  :global(.dark) .theme-toggle {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  :global(.dark) .theme-toggle:hover {
+    background: #334155;
+    border-color: #475569;
   }
 
   /* ── Save indicator ────────────────────────────────────────── */

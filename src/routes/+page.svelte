@@ -1043,8 +1043,16 @@
 </div>
 
 {#if helpMode}
-  <div class="help-overlay" onclick={() => (helpMode = false)}>
-    <div class="help-panel" onclick={(e) => e.stopPropagation()}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="help-overlay"
+    role="dialog"
+    aria-label="Ayuda de Cronista"
+    onclick={() => (helpMode = false)}
+    onkeydown={(e) => e.key === "Escape" && (helpMode = false)}
+  >
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="help-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
       <div class="help-header">
         <h2>Cronista</h2>
         <span class="help-version">v1.0</span>

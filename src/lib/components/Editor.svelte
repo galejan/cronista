@@ -21,13 +21,14 @@
   // The editor instance — $state so template bindings react.
   let editor = $state<Editor | null>(null);
 
-  /**
-   * Exposed to the parent via bind:this.
-   * Replaces the entire editor content programmatically
-   * (e.g. when loading a different chapter).
-   */
+  /** Exposed to the parent via bind:this. */
   export function setContent(html: string): void {
     editor?.commands.setContent(html, { emitUpdate: true });
+  }
+
+  /** Toggle heading level (1–3) at cursor. Called by keyboard shortcuts. */
+  export function toggleHeading(level: 1 | 2 | 3): void {
+    editor?.chain().focus().toggleHeading({ level }).run();
   }
 
   onMount(() => {
@@ -82,6 +83,7 @@
   <div bind:this={bubbleMenuEl} class="bubble-menu">
     <button
       type="button"
+      title="Título 1 (Ctrl+Alt+1)"
       onclick={() =>
         editor?.chain().focus().toggleHeading({ level: 1 }).run()}
       class:active={editor?.isActive("heading", { level: 1 })}
@@ -90,6 +92,7 @@
     </button>
     <button
       type="button"
+      title="Título 2 (Ctrl+Alt+2)"
       onclick={() =>
         editor?.chain().focus().toggleHeading({ level: 2 }).run()}
       class:active={editor?.isActive("heading", { level: 2 })}
@@ -98,6 +101,7 @@
     </button>
     <button
       type="button"
+      title="Título 3 (Ctrl+Alt+3)"
       onclick={() =>
         editor?.chain().focus().toggleHeading({ level: 3 }).run()}
       class:active={editor?.isActive("heading", { level: 3 })}

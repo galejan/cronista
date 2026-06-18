@@ -39,8 +39,11 @@
   let editorContent = $state("");
   let saveStatus = $state<"" | "saved" | "unsaved" | "saving">("");
 
-  /** Editor component reference — exposes setContent(html). */
-  let editorRef = $state<{ setContent(html: string): void }>();
+  /** Editor component reference — exposes setContent(html) + toggleHeading(level). */
+  let editorRef = $state<{
+    setContent(html: string): void;
+    toggleHeading(level: 1 | 2 | 3): void;
+  }>();
 
   // ── Debounced auto-save (2 s after last keystroke) ──────────
   const save = debounce(async () => {
@@ -253,6 +256,14 @@
       } else {
         document.documentElement.requestFullscreen();
       }
+      return;
+    }
+
+    // Ctrl+Alt+1/2/3 — heading toggle (only when editor is mounted)
+    if (e.ctrlKey && e.altKey) {
+      if (e.key === "1") { e.preventDefault(); editorRef?.toggleHeading(1); return; }
+      if (e.key === "2") { e.preventDefault(); editorRef?.toggleHeading(2); return; }
+      if (e.key === "3") { e.preventDefault(); editorRef?.toggleHeading(3); return; }
     }
   }
 </script>

@@ -208,15 +208,28 @@
     background: #ffffff;
     cursor: pointer;
     outline: none;
+    appearance: none;
+    -webkit-appearance: none;
   }
 
   .formatting-bar select:focus {
     border-color: #3b82f6;
   }
 
+  .formatting-bar select option {
+    background: #ffffff;
+    color: #475569;
+  }
+
   :global(.dark) .formatting-bar select {
     background: #1e293b;
     border-color: #334155;
+    color: #94a3b8;
+    color-scheme: dark;
+  }
+
+  :global(.dark) .formatting-bar select option {
+    background: #1e293b;
     color: #94a3b8;
   }
 

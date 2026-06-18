@@ -11,7 +11,9 @@
   import { documentDir } from "@tauri-apps/api/path";
   import { open } from "@tauri-apps/plugin-dialog";
 
-  let sidebarVisible = $state(true);
+  let sidebarPct = $state(40);          // current sidebar width in %
+  let sidebarSaved = $state(40);        // width to restore on un-collapse
+  let sidebarCollapsed = $state(false); // derived for CSS class
   let theme = $state<"light" | "dark">("light");
 
   // ── Persist theme in localStorage, default to system preference ──
@@ -178,16 +180,86 @@
 
   // ── Keyboard shortcuts ──────────────────────────────────────
   function handleKeydown(e: KeyboardEvent) {
-    if (e.ctrlKey && e.key === "b") {
+    // Ctrl+B — toggle sidebar collapse
+    if (e.ctrlKey && !e.shiftKey && e.key === "b") {
       e.preventDefault();
-      sidebarVisible = !sidebarVisible;
+      if (sidebarCollapsed) {
+        sidebarPct = sidebarSaved;
+        sidebarCollapsed = false;
+      } else {
+        sidebarSaved = sidebarPct;
+        sidebarPct = 0;
+        sidebarCollapsed = true;
+      }
+      return;
+    }
+
+    // Ctrl+< — shrink sidebar by 5 % (min 20 %)
+    if (e.ctrlKey && e.key === "<") {
+      e.preventDefault();
+      sidebarCollapsed = false;
+      sidebarPct = Math.max(20, sidebarPct - 5);
+      sidebarSaved = sidebarPct;
+      return;
+    }
+
+    // Ctrl+> — grow sidebar by 5 % (max 60 %)
+    if (e.ctrlKey && e.key === ">") {
+      e.preventDefault();
+      sidebarCollapsed = false;
+      sidebarPct = Math.min(60, sidebarPct + 5);
+      sidebarSaved = sidebarPct;
+      return;
+    }
+
+    // Ctrl+S — manual save
+    if (e.ctrlKey && !e.shiftKey && e.key === "s") {
+      e.preventDefault();
+      saveStatus = "saving";
+      save.trigger();
+      return;
+    }
+
+    // Ctrl+N — new chapter
+    if (e.ctrlKey && !e.shiftKey && e.key === "n") {
+      e.preventDefault();
+      crearCapituloNuevo();
+      return;
+    }
+
+    // Ctrl+O — open project
+    if (e.ctrlKey && !e.shiftKey && e.key === "o") {
+      e.preventDefault();
+      abrirProyecto();
+      return;
+    }
+
+    // Ctrl+Shift+N — new project (force re-setup)
+    if (e.ctrlKey && e.shiftKey && e.key === "N") {
+      e.preventDefault();
+      projectPath = "";
+      chapters = [];
+      activeChapter = "";
+      editorContent = "";
+      crearCapituloNuevo();
+      return;
+    }
+
+    // F11 — fullscreen toggle
+    if (e.key === "F11") {
+      e.preventDefault();
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen();
+      }
     }
   }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="app-layout" class:sidebar-collapsed={!sidebarVisible}>
+<div class="app-layout" class:sidebar-collapsed={sidebarCollapsed} style="grid-template-columns: {sidebarCollapsed ? 0 : sidebarPct}% {sidebarCollapsed ? 100 : 100 - sidebarPct}%">
   <!-- Sidebar (40 % when visible) — placeholder, not modified per spec -->
   <aside class="sidebar">
     <nav class="tabs">
@@ -310,13 +382,8 @@
   /* ── Layout ────────────────────────────────────────────────── */
   .app-layout {
     display: grid;
-    grid-template-columns: 40% 60%;
     height: 100vh;
-    transition: grid-template-columns 300ms ease;
-  }
-
-  .app-layout.sidebar-collapsed {
-    grid-template-columns: 0% 100%;
+    transition: grid-template-columns 200ms ease;
   }
 
   /* ── Sidebar ───────────────────────────────────────────────── */

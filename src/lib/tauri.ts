@@ -144,3 +144,10 @@ export async function eliminarEventoTimeline(
 ): Promise<string> {
   return invoke("eliminar_evento_timeline", { proyectoPath, id });
 }
+
+export async function reordenarTimeline(
+  proyectoPath: string,
+  ids: string[],
+): Promise<string> {
+  return invoke("reordenar_timeline", { proyectoPath, idsJson: JSON.stringify(ids) });
+}

@@ -956,6 +956,57 @@ fn agregar_evento_timeline(proyecto_path: String, evento_json: String) -> Result
     Ok(format!("Evento '{}' agregado a la línea de tiempo.", event_id))
 }
 
+/// Reorder timeline events to match the given ID order.
+///
+/// `ids_json` is a JSON array of event IDs in the desired order.
+/// Events with IDs not in the input are appended at the end.
+/// IDs in the input that don't exist in the timeline are silently skipped.
+#[tauri::command]
+fn reordenar_timeline(proyecto_path: String, ids_json: String) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+
+    let desired: Vec<String> = serde_json::from_str(&ids_json)
+        .map_err(|e| format!("Error al parsear la lista de IDs: {}", e))?;
+
+    let timeline_path = Path::new(&proyecto_path).join(".config").join("timeline.json");
+    if !timeline_path.exists() {
+        return Err("El archivo de línea de tiempo no existe.".to_string());
+    }
+
+    let raw = std::fs::read_to_string(&timeline_path)
+        .map_err(|e| format!("Error al leer la línea de tiempo: {}", e))?;
+    let mut timeline: Vec<TimelineEvent> = serde_json::from_str(&raw).unwrap_or_default();
+
+    // Build a lookup: id -> event (take ownership, remove from vec)
+    let mut event_map: std::collections::HashMap<String, TimelineEvent> = timeline
+        .drain(..)
+        .map(|e| (e.id.clone(), e))
+        .collect();
+
+    let mut reordered: Vec<TimelineEvent> = Vec::with_capacity(event_map.len());
+
+    // Place events in the desired order
+    for id in &desired {
+        if let Some(event) = event_map.remove(id) {
+            reordered.push(event);
+        }
+    }
+
+    // Append any remaining events (IDs not in the input)
+    for (_, event) in event_map {
+        reordered.push(event);
+    }
+
+    let timeline_json = serde_json::to_string_pretty(&reordered)
+        .map_err(|e| format!("Error al serializar la línea de tiempo: {}", e))?;
+    std::fs::write(&timeline_path, timeline_json)
+        .map_err(|e| format!("Error al escribir la línea de tiempo: {}", e))?;
+
+    Ok("Línea de tiempo reordenada correctamente.".to_string())
+}
+
 /// Remove an event from the timeline.
 ///
 /// Deletes the event with the matching `id` from `.config/timeline.json`.
@@ -1053,6 +1104,7 @@ pub fn run() {
             eliminar_nota,
             cargar_timeline,
             agregar_evento_timeline,
+            reordenar_timeline,
             eliminar_evento_timeline,
         ])
         .run(tauri::generate_context!())
@@ -2180,6 +2232,43 @@ mod tests {
             timeline[0].id
         );
         assert!(!timeline[0].id.is_empty());
+    }
+
+    // --- reordenar_timeline (1 test) ---
+
+    #[test]
+    fn test_reordenar_timeline_reorders_events() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = crear_proyecto(path.clone(), "Test".to_string());
+
+        // Add three events in known order
+        let _ = agregar_evento_timeline(
+            path.clone(),
+            r#"{"id":"evt-a","date":"2020-01-01","title":"Evento A","description":""}"#.to_string(),
+        );
+        let _ = agregar_evento_timeline(
+            path.clone(),
+            r#"{"id":"evt-b","date":"2020-06-15","title":"Evento B","description":""}"#.to_string(),
+        );
+        let _ = agregar_evento_timeline(
+            path.clone(),
+            r#"{"id":"evt-c","date":"2020-12-31","title":"Evento C","description":""}"#.to_string(),
+        );
+
+        // Reorder: C, A, B
+        let ids_json = r#"["evt-c","evt-a","evt-b"]"#;
+        let result = reordenar_timeline(path.clone(), ids_json.to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let raw = cargar_timeline(path).unwrap();
+        let timeline: Vec<TimelineEvent> =
+            serde_json::from_str(&raw).unwrap();
+        assert_eq!(timeline.len(), 3);
+        assert_eq!(timeline[0].id, "evt-c");
+        assert_eq!(timeline[1].id, "evt-a");
+        assert_eq!(timeline[2].id, "evt-b");
     }
 
     // --- eliminar_evento_timeline (1 test) ---

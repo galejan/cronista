@@ -21,6 +21,7 @@
     guardarCapitulo,
     listarNotas,
     listarPersonajes,
+    reordenarTimeline,
   } from "$lib/tauri";
   import { documentDir } from "@tauri-apps/api/path";
   import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -396,6 +397,12 @@
 
   async function seleccionarPersonaje(id: string): Promise<void> {
     save.trigger(); // save current work first
+    // Toggle: if already expanded, collapse; otherwise load and expand
+    if (personajeExpandido === id) {
+      personajeExpandido = null;
+      personajeEditando = null;
+      return;
+    }
     try {
       const raw = await cargarPersonaje(projectPath, id);
       personajeEditando = JSON.parse(raw);
@@ -537,8 +544,6 @@
     try {
       const raw = await cargarTimeline(projectPath);
       timeline = JSON.parse(raw);
-      // Sort chronologically
-      timeline.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     } catch (e) {
       console.error("[cronista] Failed to load timeline:", e);
       timeline = [];
@@ -581,6 +586,34 @@
       console.error("[cronista] Delete timeline event failed:", e);
       alert(`${t("timeline.deleteError")} ${e}`);
     }
+  }
+
+  // ── Drag-and-drop reorder ────────────────────────────────────
+  let dragId = $state<string | null>(null);
+
+  function handleDragStart(e: DragEvent, id: string) {
+    dragId = id;
+    e.dataTransfer!.effectAllowed = "move";
+    (e.currentTarget as HTMLElement).classList.add("dragging");
+  }
+
+  function handleDrop(e: DragEvent, targetId: string) {
+    e.preventDefault();
+    if (!dragId || dragId === targetId) return;
+
+    const fromIdx = timeline.findIndex(evt => evt.id === dragId);
+    const toIdx = timeline.findIndex(evt => evt.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const reordered = [...timeline];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    timeline = reordered;
+    dragId = null;
+
+    // Save to backend
+    const ids = reordered.map(evt => evt.id);
+    reordenarTimeline(projectPath, ids).catch(e => console.error("Reorder failed:", e));
   }
 
   function togglePersonajeCapitulo(
@@ -992,7 +1025,13 @@
             {#if timeline.length > 0}
               <ul class="timeline-list">
                 {#each timeline as evt}
-                  <li class="timeline-event">
+                  <li
+                    class="timeline-event"
+                    draggable="true"
+                    ondragstart={(e) => handleDragStart(e, evt.id)}
+                    ondragover={(e) => e.preventDefault()}
+                    ondrop={(e) => handleDrop(e, evt.id)}
+                  >
                     <span class="event-date">{evt.date}</span>
                     <span class="event-title">{evt.title}</span>
                     <button
@@ -1969,7 +2008,10 @@
     gap: 0.5rem;
     padding: 0.25rem 0;
     font-size: 0.75rem;
+    cursor: grab;
   }
+  .timeline-event.dragging { opacity: 0.4; }
+  .timeline-event.drag-over { border-top: 2px solid #3b82f6; }
 
   .event-date {
     flex-shrink: 0;

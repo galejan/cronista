@@ -23,6 +23,7 @@
     listarPersonajes,
   } from "$lib/tauri";
   import { documentDir } from "@tauri-apps/api/path";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { open } from "@tauri-apps/plugin-dialog";
 
   let sidebarPct = $state(40);          // current sidebar width in %
@@ -45,6 +46,95 @@
   $effect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("cronista-theme", theme);
+  });
+
+  // ── Window state persistence (Tauri only, fails silently elsewhere) ──
+
+  async function saveWindowState(): Promise<void> {
+    try {
+      const win = getCurrentWindow();
+      const [isMax, size, pos] = await Promise.all([
+        win.isMaximized(),
+        win.outerSize(),
+        win.outerPosition(),
+      ]);
+      localStorage.setItem("cronista-window-maximized", String(isMax));
+      localStorage.setItem(
+        "cronista-window-size",
+        JSON.stringify({ width: size.width, height: size.height }),
+      );
+      localStorage.setItem(
+        "cronista-window-position",
+        JSON.stringify({ x: pos.x, y: pos.y }),
+      );
+    } catch {
+      // Not running inside Tauri (e.g. svelte-check).
+    }
+  }
+
+  async function restoreWindowState(): Promise<void> {
+    try {
+      const win = getCurrentWindow();
+      const storedMax = localStorage.getItem("cronista-window-maximized");
+      if (storedMax === "true") {
+        await win.maximize();
+        return;
+      }
+      const storedSize = localStorage.getItem("cronista-window-size");
+      const storedPos = localStorage.getItem("cronista-window-position");
+      if (storedSize) {
+        const { width, height } = JSON.parse(storedSize);
+        await win.setSize({ width, height } as unknown as any);
+      }
+      if (storedPos) {
+        const { x, y } = JSON.parse(storedPos);
+        await win.setPosition({ x, y } as unknown as any);
+      }
+    } catch {
+      // Not running inside Tauri.
+    }
+  }
+
+  // ── Restore sidebar width and window state on mount ───────────
+  $effect(() => {
+    // Restore sidebar width
+    const savedPct = localStorage.getItem("cronista-sidebar-pct");
+    if (savedPct) {
+      const val = Number(savedPct);
+      if (val >= 20 && val <= 60) {
+        sidebarPct = val;
+        sidebarSaved = val;
+      }
+    }
+
+    // Restore window size/position (Tauri)
+    restoreWindowState();
+
+    // Keep saved window state current on resize/move
+    try {
+      const win = getCurrentWindow();
+      let saveTimer: ReturnType<typeof setTimeout> | null = null;
+      const debouncedSave = () => {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveWindowState, 500);
+      };
+      win.onResized(debouncedSave);
+      win.onMoved(debouncedSave);
+    } catch {
+      // Not in Tauri.
+    }
+
+    // Last-resort save on close
+    window.addEventListener("beforeunload", () => {
+      saveWindowState();
+    });
+  });
+
+  // ── Persist sidebar width on every change ─────────────────────
+  $effect(() => {
+    if (sidebarPct > 0) {
+      localStorage.setItem("cronista-sidebar-pct", String(sidebarPct));
+    }
   });
 
   // ── Editor & project state ──────────────────────────────────

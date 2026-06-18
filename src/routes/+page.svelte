@@ -154,19 +154,20 @@
     let unlisten: (() => void) | undefined;
 
     try {
-      getCurrentWindow().onCloseRequested(async (_event) => {
-        if (projectPath) {
-          // Save any unsaved work
-          if (activeChapter && saveStatus === "unsaved") {
-            try {
-              await guardarCapitulo(projectPath, activeChapter, editorContent);
-            } catch { /* silent */ }
+      getCurrentWindow().onCloseRequested(async (event) => {
+        if (!projectPath) return;
+
+        event.preventDefault(); // Wait for save before closing
+
+        try {
+          if (activeChapter && editorContent) {
+            await guardarCapitulo(projectPath, activeChapter, editorContent);
           }
-          // Create checkpoint
-          try {
-            await crearCheckpoint(projectPath);
-          } catch { /* silent */ }
-        }
+          await crearCheckpoint(projectPath);
+        } catch { /* silent */ }
+
+        // Now close for real
+        getCurrentWindow().close();
       }).then((fn) => { unlisten = fn; }).catch(() => { /* not in Tauri */ });
     } catch {
       // Not in Tauri.

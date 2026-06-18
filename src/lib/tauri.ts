@@ -28,3 +28,18 @@ export async function crearCheckpoint(
 export async function cargarIndice(proyectoPath: string): Promise<string> {
   return invoke("cargar_indice", { proyectoPath });
 }
+
+export async function cargarCapitulo(
+  proyectoPath: string,
+  filename: string,
+): Promise<string> {
+  return invoke("cargar_capitulo", { proyectoPath, filename });
+}
+
+export async function crearCapitulo(
+  proyectoPath: string,
+  filename: string,
+  contenido: string,
+): Promise<string> {
+  return invoke("crear_capitulo", { proyectoPath, filename, contenido });
+}

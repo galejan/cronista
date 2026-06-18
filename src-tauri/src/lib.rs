@@ -293,6 +293,95 @@ fn cargar_indice(proyecto_path: String) -> Result<String, String> {
         .map_err(|e| format!("No se pudo leer el índice del proyecto: {}", e))
 }
 
+/// Read a single chapter file from disk.
+///
+/// Returns the UTF-8 content of `{proyecto_path}/capitulos/{filename}`.
+/// The frontend is responsible for parsing and rendering the markdown/HTML.
+#[tauri::command]
+fn cargar_capitulo(proyecto_path: String, filename: String) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if filename.trim().is_empty() {
+        return Err("El nombre del archivo no puede estar vacío.".to_string());
+    }
+
+    let file_path = Path::new(&proyecto_path).join("capitulos").join(&filename);
+
+    if !file_path.exists() {
+        return Err(format!("Archivo no encontrado: {}", file_path.display()));
+    }
+
+    std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("Error al leer el capítulo: {}", e))
+}
+
+/// Create a new chapter .md file and register it in metadata.json.
+///
+/// 1. Rejects duplicates (file already exists in `capitulos/`).
+/// 2. Writes the `.md` file first.
+/// 3. Updates `metadata.json`: appends `filename` to `chapters_order`
+///    and refreshes `last_modified`.
+///
+/// Write order (file first, then metadata) prevents an index entry
+/// pointing to a missing file in case of a crash mid-operation.
+#[tauri::command]
+fn crear_capitulo(
+    proyecto_path: String,
+    filename: String,
+    contenido: String,
+) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if filename.trim().is_empty() {
+        return Err("El nombre del archivo no puede estar vacío.".to_string());
+    }
+
+    let cap_dir = Path::new(&proyecto_path).join("capitulos");
+    let file_path = cap_dir.join(&filename);
+
+    // Reject duplicates
+    if file_path.exists() {
+        return Err(format!("El capítulo '{}' ya existe.", filename));
+    }
+
+    // Ensure the capítulos directory exists
+    std::fs::create_dir_all(&cap_dir)
+        .map_err(|e| format!("No se pudo crear el directorio capítulos: {}", e))?;
+
+    // 1) Write the .md file first
+    std::fs::write(&file_path, &contenido)
+        .map_err(|e| format!("Error al crear el capítulo: {}", e))?;
+
+    // 2) Update metadata.json
+    let metadata_path = Path::new(&proyecto_path).join(".config").join("metadata.json");
+
+    if !metadata_path.exists() {
+        return Err(format!(
+            "Archivo de metadatos no encontrado: {}",
+            metadata_path.display()
+        ));
+    }
+
+    let metadata_str = std::fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Error al leer metadata.json: {}", e))?;
+
+    let mut metadata: Metadata = serde_json::from_str(&metadata_str)
+        .map_err(|e| format!("Error al parsear metadata.json: {}", e))?;
+
+    metadata.chapters_order.push(filename.clone());
+    metadata.last_modified = Utc::now().to_rfc3339();
+
+    let updated_json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| format!("Error al serializar metadata.json: {}", e))?;
+
+    std::fs::write(&metadata_path, updated_json)
+        .map_err(|e| format!("Error al escribir metadata.json: {}", e))?;
+
+    Ok(format!("Capítulo creado: {}", file_path.display()))
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -335,6 +424,8 @@ pub fn run() {
             guardar_capitulo,
             crear_checkpoint,
             cargar_indice,
+            cargar_capitulo,
+            crear_capitulo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -835,6 +926,163 @@ mod tests {
         assert_eq!(
             index["project_name"].as_str().unwrap(),
             "Full Flow Test"
+        );
+    }
+
+    // ========================================================================
+    // editor-integration tests
+    // ========================================================================
+
+    // --- cargar_capitulo (3 tests) ---
+
+    #[test]
+    fn test_cargar_capitulo_reads_existing_file() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+        let content = "# Prólogo\n\nEra una noche...";
+        fs::write(
+            dir.path().join("capitulos").join("0001_prologo.md"),
+            content,
+        )
+        .unwrap();
+
+        let result = cargar_capitulo(path, "0001_prologo.md".to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        assert_eq!(result.unwrap(), content);
+    }
+
+    #[test]
+    fn test_cargar_capitulo_file_not_found() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+
+        let result = cargar_capitulo(path, "9999_fantasma.md".to_string());
+        assert!(result.is_err(), "Expected Err for missing file");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("no encontrado") || err.contains("not found"),
+            "Error should mention missing file, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_cargar_capitulo_empty_path() {
+        let result = cargar_capitulo("".to_string(), "test.md".to_string());
+        assert!(result.is_err(), "Expected Err for empty path");
+        let err = result.unwrap_err();
+        assert!(!err.is_empty(), "Error message should not be empty");
+    }
+
+    // --- crear_capitulo (3 tests) ---
+
+    #[test]
+    fn test_crear_capitulo_creates_file_and_updates_metadata() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        // Create a project so metadata.json exists
+        let _ = crear_proyecto(path.clone(), "Test Project".to_string());
+
+        let contenido = "# Capítulo 1\n\n";
+        let result = crear_capitulo(
+            path.clone(),
+            "0002_capitulo_1.md".to_string(),
+            contenido.to_string(),
+        );
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        // File must exist with correct content
+        let file_path = dir.path().join("capitulos").join("0002_capitulo_1.md");
+        assert!(file_path.exists(), "Chapter file does not exist");
+        let written = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(written, contenido);
+
+        // Metadata must contain the new chapter in chapters_order
+        let metadata_path = dir.path().join(".config").join("metadata.json");
+        let metadata_str = fs::read_to_string(&metadata_path).unwrap();
+        let metadata: Metadata =
+            serde_json::from_str(&metadata_str).expect("invalid metadata.json");
+        assert!(
+            metadata.chapters_order.contains(&"0002_capitulo_1.md".to_string()),
+            "chapters_order should include the new chapter"
+        );
+        // last_modified must be updated (non-empty ISO 8601)
+        assert!(
+            metadata.last_modified.contains('T'),
+            "last_modified should be ISO 8601: {}",
+            metadata.last_modified
+        );
+    }
+
+    #[test]
+    fn test_crear_capitulo_rejects_duplicate() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = crear_proyecto(path.clone(), "Test Project".to_string());
+
+        // Create a chapter file manually so it already exists
+        fs::write(
+            dir.path().join("capitulos").join("0001_prologo.md"),
+            "# Prólogo\n\n",
+        )
+        .unwrap();
+
+        let result = crear_capitulo(
+            path.clone(),
+            "0001_prologo.md".to_string(),
+            "Contenido duplicado".to_string(),
+        );
+        assert!(result.is_err(), "Expected Err for duplicate chapter");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("ya existe") || err.contains("already exists"),
+            "Error should mention duplicate, got: {}",
+            err
+        );
+
+        // metadata.json must NOT be modified
+        let metadata_path = dir.path().join(".config").join("metadata.json");
+        let metadata_str = fs::read_to_string(&metadata_path).unwrap();
+        let metadata: Metadata =
+            serde_json::from_str(&metadata_str).expect("invalid metadata.json");
+        assert!(
+            metadata.chapters_order.is_empty(),
+            "chapters_order should remain empty after duplicate rejection"
+        );
+    }
+
+    #[test]
+    fn test_crear_capitulo_handles_unicode() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = crear_proyecto(path.clone(), "Test Project".to_string());
+
+        let contenido = concat!(
+            "Ñoño y pingüino — ¡árbol!\n",
+            "áéíóú ü ñ ¿? ¡!\n",
+            "😀🎉🔥 — emoji\n",
+            "日本語テスト — CJK\n",
+        );
+
+        let result = crear_capitulo(
+            path.clone(),
+            "unicode_chapter.md".to_string(),
+            contenido.to_string(),
+        );
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let file_path = dir.path().join("capitulos").join("unicode_chapter.md");
+        let read_back = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(
+            read_back, contenido,
+            "UTF-8 round-trip failed: content mismatch"
         );
     }
 

@@ -1,1 +1,48 @@
 @import "tailwindcss";
+
+/* ── ProseMirror Editor Typography ────────────────────────────── */
+
+.ProseMirror {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.8;
+  color: #1a1a1a;
+  max-width: 65ch;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  outline: none;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.ProseMirror h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 2.5rem 0 1rem;
+}
+
+.ProseMirror h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 2rem 0 0.75rem;
+}
+
+.ProseMirror h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.6;
+  margin: 1.75rem 0 0.5rem;
+}
+
+.ProseMirror p {
+  margin: 0 0 0.75em;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}

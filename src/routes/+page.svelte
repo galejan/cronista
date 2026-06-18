@@ -959,7 +959,7 @@
     {#if !projectPath}
       <!-- First launch: prompt for project path -->
       <div class="setup-prompt">
-        <p class="setup-text">Seleccioná una carpeta de proyecto para comenzar</p>
+        <p class="setup-text">Selecciona una carpeta de proyecto para comenzar</p>
         <div class="setup-actions">
           <button
             class="btn-primary"
@@ -1063,35 +1063,35 @@
 
       <div class="help-section">
         <h3>📖 Editor</h3>
-        <p>Escribí en la zona central. El texto se guarda automáticamente a los 2 segundos de inactividad. Usá el menú flotante para dar formato al seleccionar texto.</p>
+        <p>Escribe en la zona central. El texto se guarda automáticamente tras 2 segundos de inactividad. Usa el menú flotante para dar formato al seleccionar texto.</p>
       </div>
 
       <div class="help-section">
         <h3>📂 Capítulos</h3>
-        <p>Creá, cargá y eliminá capítulos desde la pestaña <strong>Capítulos</strong> o con el botón <strong>+ Nuevo capítulo</strong>. Doble clic en ✕ para eliminar con confirmación.</p>
+        <p>Crea, carga y elimina capítulos desde la pestaña <strong>Capítulos</strong> o con el botón <strong>+ Nuevo capítulo</strong>. Doble clic en ✕ para eliminar con confirmación.</p>
       </div>
 
       <div class="help-section">
         <h3>👤 Personajes</h3>
-        <p>Fichas con descripción física, personalidad, traumas y relaciones. Las relaciones pueden ser unilaterales (ej: A está enamorado de B, pero no al revés).</p>
+        <p>Fichas con descripción física, personalidad, traumas y relaciones. Las relaciones pueden ser unilaterales (ej.: A está enamorado de B, pero no al revés).</p>
       </div>
 
       <div class="help-section">
         <h3>📝 Notas</h3>
-        <p>Ideas, recordatorios y análisis. Al hacer clic en una nota, su contenido se carga en el editor principal para que puedas trabajar con formato.</p>
+        <p>Ideas, recordatorios y análisis. Al hacer clic en una nota, su contenido se carga en el editor principal para trabajar con formato.</p>
       </div>
 
       <div class="help-section">
-        <h3>⏳ Timeline</h3>
-        <p>Línea de tiempo al final del sidebar. Agregá eventos con fecha, descripción y vinculalos a personajes y capítulos.</p>
+        <h3>⏳ Línea de tiempo</h3>
+        <p>Línea temporal al final del panel lateral. Añade eventos con fecha, descripción y vincúlalos a personajes y capítulos.</p>
       </div>
 
       <div class="help-section">
         <h3>⌨️ Atajos de teclado</h3>
         <table class="help-shortcuts">
           <tbody>
-          <tr><td><kbd>Ctrl+B</kbd></td><td>Colapsar / restaurar sidebar</td></tr>
-          <tr><td><kbd>Ctrl+&lt;</kbd> / <kbd>Ctrl+&gt;</kbd></td><td>Encoger / agrandar sidebar (5% por paso)</td></tr>
+          <tr><td><kbd>Ctrl+B</kbd></td><td>Colapsar / restaurar panel lateral</td></tr>
+          <tr><td><kbd>Ctrl+Shift+,</kbd> / <kbd>Ctrl+Shift+.</kbd></td><td>Reducir / ampliar panel lateral (5&nbsp;% por paso)</td></tr>
           <tr><td><kbd>Ctrl+S</kbd></td><td>Guardar ahora</td></tr>
           <tr><td><kbd>Ctrl+N</kbd></td><td>Nuevo capítulo</td></tr>
           <tr><td><kbd>Ctrl+O</kbd></td><td>Abrir proyecto existente</td></tr>

@@ -748,8 +748,8 @@
       return;
     }
 
-    // Ctrl+< — shrink sidebar by 5 % (min 20 %)
-    if (e.ctrlKey && e.key === "<") {
+    // Ctrl+Left — shrink sidebar by 5 % (min 20 %)
+    if (e.ctrlKey && !e.shiftKey && e.key === "ArrowLeft") {
       e.preventDefault();
       sidebarCollapsed = false;
       sidebarPct = Math.max(20, sidebarPct - 5);
@@ -757,8 +757,8 @@
       return;
     }
 
-    // Ctrl+> — grow sidebar by 5 % (max 60 %)
-    if (e.ctrlKey && e.key === ">") {
+    // Ctrl+Right — grow sidebar by 5 % (max 60 %)
+    if (e.ctrlKey && !e.shiftKey && e.key === "ArrowRight") {
       e.preventDefault();
       sidebarCollapsed = false;
       sidebarPct = Math.min(60, sidebarPct + 5);
@@ -1341,7 +1341,7 @@
         <table class="help-shortcuts">
           <tbody>
           <tr><td><kbd>Ctrl+B</kbd></td><td>{t("help.shortcuts.toggleSidebar")}</td></tr>
-          <tr><td><kbd>Ctrl+Shift+,</kbd> / <kbd>Ctrl+Shift+.</kbd></td><td>{t("help.shortcuts.resizeSidebar")}</td></tr>
+          <tr><td><kbd>Ctrl+←</kbd> / <kbd>Ctrl+→</kbd></td><td>{t("help.shortcuts.resizeSidebar")}</td></tr>
           <tr><td><kbd>Ctrl+S</kbd></td><td>{t("help.shortcuts.saveNow")}</td></tr>
           <tr><td><kbd>Ctrl+N</kbd></td><td>{t("help.shortcuts.newChapter")}</td></tr>
           <tr><td><kbd>Ctrl+O</kbd></td><td>{t("help.shortcuts.openProject")}</td></tr>

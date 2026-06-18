@@ -95,7 +95,7 @@
     // ── Initial project setup (only when no project is loaded) ─
     if (!projectPath) {
       const docsDir = await documentDir();
-      const defaultPath = `${docsDir}mi-novela`;
+      const defaultPath = `${docsDir}/mi-novela`;
       const path = prompt(
         "Ruta de la carpeta del proyecto:",
         defaultPath,

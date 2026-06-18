@@ -28,6 +28,7 @@
   let sidebarSaved = $state(40);        // width to restore on un-collapse
   let sidebarCollapsed = $state(false); // derived for CSS class
   let theme = $state<"light" | "dark">("light");
+  let helpMode = $state(false);
 
   // ── Persist theme in localStorage, default to system preference ──
   $effect(() => {
@@ -587,6 +588,20 @@
       return;
     }
 
+    // F1 — help toggle
+    if (e.key === "F1") {
+      e.preventDefault();
+      helpMode = !helpMode;
+      return;
+    }
+
+    // ? — help toggle (without shift, plain key)
+    if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === "?") {
+      e.preventDefault();
+      helpMode = !helpMode;
+      return;
+    }
+
     // Ctrl+Alt+1/2/3 — heading toggle (only when editor is mounted)
     if (e.ctrlKey && e.altKey) {
       if (e.key === "1") { e.preventDefault(); editorRef?.toggleHeading(1); return; }
@@ -968,7 +983,7 @@
             <span class="project-label" title={projectPath}>
               {projectPath.split("/").pop() || projectPath}
             </span>
-            <button class="toolbar-btn" onclick={crearCapituloNuevo}>
+            <button class="toolbar-btn" onclick={crearCapituloNuevo} title="Nuevo capítulo (Ctrl+N)">
               + Nuevo capítulo
             </button>
           </div>
@@ -983,6 +998,13 @@
               title="Guardar ahora (Ctrl+S)"
             >
               Guardar
+            </button>
+            <button
+              class="help-btn"
+              onclick={() => (helpMode = !helpMode)}
+              title="Ayuda (F1)"
+            >
+              ?
             </button>
             <button
               class="theme-toggle"
@@ -1019,6 +1041,62 @@
     {/if}
   </main>
 </div>
+
+{#if helpMode}
+  <div class="help-overlay" onclick={() => (helpMode = false)}>
+    <div class="help-panel" onclick={(e) => e.stopPropagation()}>
+      <div class="help-header">
+        <h2>Cronista</h2>
+        <span class="help-version">v1.0</span>
+        <button class="help-close" onclick={() => (helpMode = false)}>✕</button>
+      </div>
+
+      <p class="help-creator">creado por <a href="mailto:galejan@gmail.com">galejan@gmail.com</a></p>
+
+      <div class="help-section">
+        <h3>📖 Editor</h3>
+        <p>Escribí en la zona central. El texto se guarda automáticamente a los 2 segundos de inactividad. Usá el menú flotante para dar formato al seleccionar texto.</p>
+      </div>
+
+      <div class="help-section">
+        <h3>📂 Capítulos</h3>
+        <p>Creá, cargá y eliminá capítulos desde la pestaña <strong>Capítulos</strong> o con el botón <strong>+ Nuevo capítulo</strong>. Doble clic en ✕ para eliminar con confirmación.</p>
+      </div>
+
+      <div class="help-section">
+        <h3>👤 Personajes</h3>
+        <p>Fichas con descripción física, personalidad, traumas y relaciones. Las relaciones pueden ser unilaterales (ej: A está enamorado de B, pero no al revés).</p>
+      </div>
+
+      <div class="help-section">
+        <h3>📝 Notas</h3>
+        <p>Ideas, recordatorios y análisis. Al hacer clic en una nota, su contenido se carga en el editor principal para que puedas trabajar con formato.</p>
+      </div>
+
+      <div class="help-section">
+        <h3>⏳ Timeline</h3>
+        <p>Línea de tiempo al final del sidebar. Agregá eventos con fecha, descripción y vinculalos a personajes y capítulos.</p>
+      </div>
+
+      <div class="help-section">
+        <h3>⌨️ Atajos de teclado</h3>
+        <table class="help-shortcuts">
+          <tbody>
+          <tr><td><kbd>Ctrl+B</kbd></td><td>Colapsar / restaurar sidebar</td></tr>
+          <tr><td><kbd>Ctrl+&lt;</kbd> / <kbd>Ctrl+&gt;</kbd></td><td>Encoger / agrandar sidebar (5% por paso)</td></tr>
+          <tr><td><kbd>Ctrl+S</kbd></td><td>Guardar ahora</td></tr>
+          <tr><td><kbd>Ctrl+N</kbd></td><td>Nuevo capítulo</td></tr>
+          <tr><td><kbd>Ctrl+O</kbd></td><td>Abrir proyecto existente</td></tr>
+          <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>Nuevo proyecto (reinicia)</td></tr>
+          <tr><td><kbd>Ctrl+Alt+1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td><td>Aplicar Título 1 / 2 / 3</td></tr>
+          <tr><td><kbd>F11</kbd></td><td>Pantalla completa</td></tr>
+          <tr><td><kbd>F1</kbd> o <kbd>?</kbd></td><td>Mostrar / ocultar esta ayuda</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* ── Layout ────────────────────────────────────────────────── */
@@ -1798,5 +1876,190 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateX(-4px); }
     to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ── Help button ──────────────────────────────────────────── */
+  .help-btn {
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 50%;
+    background: #ffffff;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+
+  .help-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #1e293b;
+  }
+
+  :global(.dark) .help-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+  :global(.dark) .help-btn:hover {
+    background: #334155;
+    border-color: #475569;
+    color: #e2e8f0;
+  }
+
+  /* ── Help overlay ─────────────────────────────────────────── */
+  .help-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 120ms ease;
+  }
+
+  .help-panel {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    max-width: 520px;
+    width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 1.5rem;
+  }
+
+  :global(.dark) .help-panel {
+    background: #1e293b;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  }
+
+  .help-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .help-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  :global(.dark) .help-header h2 {
+    color: #f1f5f9;
+  }
+
+  .help-version {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
+  }
+
+  .help-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    font-size: 1.125rem;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+  }
+
+  .help-close:hover {
+    color: #1e293b;
+  }
+
+  :global(.dark) .help-close:hover {
+    color: #e2e8f0;
+  }
+
+  .help-creator {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin: 0 0 1.25rem;
+  }
+
+  .help-creator a {
+    color: #3b82f6;
+    text-decoration: none;
+  }
+
+  .help-creator a:hover {
+    text-decoration: underline;
+  }
+
+  .help-section {
+    margin-bottom: 1rem;
+  }
+
+  .help-section h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 0.25rem;
+  }
+
+  :global(.dark) .help-section h3 {
+    color: #e2e8f0;
+  }
+
+  .help-section p {
+    font-size: 0.8125rem;
+    color: #475569;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  :global(.dark) .help-section p {
+    color: #94a3b8;
+  }
+
+  .help-shortcuts {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+  }
+
+  .help-shortcuts td {
+    padding: 0.25rem 0;
+    vertical-align: top;
+    color: #475569;
+  }
+
+  .help-shortcuts td:first-child {
+    white-space: nowrap;
+    padding-right: 0.75rem;
+  }
+
+  :global(.dark) .help-shortcuts td {
+    color: #94a3b8;
+  }
+
+  .help-shortcuts kbd {
+    display: inline-block;
+    padding: 0.125rem 0.375rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.25rem;
+    color: #1e293b;
+  }
+
+  :global(.dark) .help-shortcuts kbd {
+    background: #334155;
+    border-color: #475569;
+    color: #e2e8f0;
   }
 </style>

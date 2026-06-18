@@ -1,7 +1,7 @@
 <script lang="ts">
   import Editor from "$lib/components/Editor.svelte";
   import { debounce } from "$lib/debounce";
-  import { t, setLang, currentLang } from "$lib/i18n";
+  import { t, setLang, lang } from "$lib/i18n";
   import {
     actualizarPersonaje,
     agregarEventoTimeline,
@@ -1245,13 +1245,13 @@
             </button>
             <button
               class="lang-btn"
-              class:active-lang={currentLang === "es"}
+              class:active-lang={$lang === "es"}
               onclick={() => setLang("es")}
               title="Español"
             >🇪🇸</button>
             <button
               class="lang-btn"
-              class:active-lang={currentLang === "en"}
+              class:active-lang={$lang === "en"}
               onclick={() => setLang("en")}
               title="English"
             >🇬🇧</button>

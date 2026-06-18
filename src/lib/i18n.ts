@@ -1,27 +1,37 @@
 /**
  * Cronista i18n — lightweight Spanish/English translation system.
  *
- * Architecture:
- * - `currentLang` is a `$state` rune, so templates calling `t()` are reactive.
- * - `setLang()` persists the choice to localStorage.
- * - On init, reads `cronista-lang` from localStorage; fallback `"es"`.
+ * Uses a Svelte writable store (works in plain .ts files).
+ * In templates, use the $lang auto-subscription: {$lang === "en" ? "🇬🇧" : "🇪🇸"}
+ * In JS functions, use get(lang) to read the current value.
  *
  * Usage in components:
- *   import { t, setLang, currentLang } from "$lib/i18n";
- *   <button>{t("common.cancel")}</button>
+ *   import { t, setLang, lang } from "$lib/i18n";
  *   <button onclick={() => setLang("en")}>🇬🇧</button>
+ *   <p>{t("common.cancel")}</p>
  */
+
+import { writable, get } from "svelte/store";
 
 export type Lang = "es" | "en";
 
-/** Reactive language state — changing this re-renders all `t()` calls in templates. */
-export let currentLang = $state<Lang>("es");
+/** Reactive language store — use $lang in templates, get(lang) in JS. */
+export const lang = writable<Lang>(
+  (typeof localStorage !== "undefined"
+    ? (localStorage.getItem("cronista-lang") as Lang | null)
+    : null) ?? "es",
+);
 
-// ── Init: read persisted language ────────────────────────────
-if (typeof localStorage !== "undefined") {
-  const stored = localStorage.getItem("cronista-lang");
-  if (stored === "es" || stored === "en") {
-    currentLang = stored as Lang;
+/** Translate a key to the current language. Reactive in templates. */
+export function t(key: string): string {
+  return translations[get(lang)]?.[key] ?? key;
+}
+
+/** Change the active language and persist the choice. */
+export function setLang(l: Lang): void {
+  lang.set(l);
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem("cronista-lang", l);
   }
 }
 
@@ -346,16 +356,3 @@ const translations: Record<Lang, Record<string, string>> = {
  *
  * Falls back to the key itself if translation is missing.
  */
-export function t(key: string): string {
-  return translations[currentLang]?.[key] ?? key;
-}
-
-/**
- * Change the active language and persist the choice.
- */
-export function setLang(lang: Lang): void {
-  currentLang = lang;
-  if (typeof localStorage !== "undefined") {
-    localStorage.setItem("cronista-lang", lang);
-  }
-}

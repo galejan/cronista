@@ -9,6 +9,7 @@
     guardarCapitulo,
   } from "$lib/tauri";
   import { documentDir } from "@tauri-apps/api/path";
+  import { open } from "@tauri-apps/plugin-dialog";
 
   let sidebarVisible = $state(true);
   let theme = $state<"light" | "dark">("light");
@@ -95,21 +96,24 @@
     // ── Initial project setup (only when no project is loaded) ─
     if (!projectPath) {
       const docsDir = await documentDir();
-      const defaultPath = `${docsDir}/mi-novela`;
-      const path = prompt(
-        "Ruta de la carpeta del proyecto:",
-        defaultPath,
-      );
-      if (!path) return;
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Seleccioná la carpeta donde crear el proyecto",
+        defaultPath: docsDir,
+      });
+      if (!selected) return;
 
       const name = prompt("Nombre del proyecto (ej: Mi Novela):", "Mi Novela");
       if (!name) return;
 
+      const path = `${selected}/${name.trim()}`;
+
       console.log("[cronista] Creating project:", { path, name });
       try {
-        const msg = await crearProyecto(path.trim(), name.trim());
+        const msg = await crearProyecto(path, name.trim());
         console.log("[cronista] Project created:", msg);
-        projectPath = path.trim();
+        projectPath = path;
         await refreshChapters();
       } catch (e) {
         console.error("[cronista] Failed to create project:", e);
@@ -142,18 +146,21 @@
   /** Open an existing project by loading its metadata.json. */
   async function abrirProyecto(): Promise<void> {
     const docsDir = await documentDir();
-    const path = prompt(
-      "Ruta de la carpeta del proyecto existente:",
-      docsDir,
-    );
-    if (!path) return;
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Seleccioná la carpeta del proyecto",
+      defaultPath: docsDir,
+    });
+    if (!selected) return;
 
+    const path = selected as string;
     console.log("[cronista] Opening project:", path);
     try {
       // Verify it's a valid project by reading the index
-      const raw = await cargarIndice(path.trim());
+      const raw = await cargarIndice(path);
       const meta = JSON.parse(raw);
-      projectPath = path.trim();
+      projectPath = path;
       chapters = meta.chapters_order ?? [];
       console.log("[cronista] Project opened:", meta.project_name, chapters);
 
@@ -256,6 +263,13 @@
             {#if activeChapter}
               <span class="chapter-label">{activeChapter}</span>
             {/if}
+            <button
+              class="toolbar-btn"
+              onclick={() => { saveStatus = "saving"; save.trigger(); }}
+              title="Guardar ahora (Ctrl+S)"
+            >
+              Guardar
+            </button>
             <button
               class="theme-toggle"
               onclick={() => (theme = theme === "light" ? "dark" : "light")}

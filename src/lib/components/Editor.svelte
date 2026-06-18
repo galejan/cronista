@@ -126,10 +126,11 @@
     overflow: hidden;
   }
 
-  /* TipTap mounts inside this — must scroll */
-  .editor-wrapper :global(.ProseMirror) {
+  /* The div where TipTap mounts — fills remaining space */
+  .editor-wrapper > div:last-child {
     flex: 1;
     overflow-y: auto;
+    min-height: 0;
   }
 
   /* ── Formatting bar ───────────────────────────────────────── */

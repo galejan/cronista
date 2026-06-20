@@ -1514,8 +1514,16 @@
               ✕ {t("toolbar.closeProject")}
             </button>
             <span class="footer-sep"></span>
-            <button class="footer-btn" onclick={() => { console.log("[cronista] Export button clicked"); abrirExportModal(); }} title={t("export.title")}>
-              📦 {t("export.export")}
+            <button class="footer-btn" onclick={async () => {
+              console.log("[cronista] Export button clicked");
+              try {
+                const result = await exportarProyectoZip(projectPath);
+                alert(t("export.zipSuccess") + "\n" + result);
+              } catch (e) {
+                alert(t("export.error") + " " + e);
+              }
+            }} title={t("export.zipTitle")}>
+              🗜️ {t("export.export")}
             </button>
           </div>
 

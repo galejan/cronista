@@ -45,6 +45,11 @@
     editor?.chain().focus().insertContent(text).run();
   }
 
+  /** Whether the TipTap editor currently has focus. */
+  export function isFocused(): boolean {
+    return editor?.isFocused ?? false;
+  }
+
   onMount(() => {
     const ed = new Editor({
       element: editorContainer,

@@ -265,6 +265,7 @@
     decreaseHeading(): void;
     insertPair(open: string, close: string): void;
     insertText(text: string): void;
+    isFocused(): boolean;
   }>();
 
   // ── Sidebar tab state ───────────────────────────────────────
@@ -1050,37 +1051,16 @@
       return;
     }
 
-    // ── Smart pairs (only when editing in the main editor) ─────
-
-    // Check if focus is inside the editor area (not a modal input)
-    const active = document.activeElement;
-    const inEditor = active && active.closest(".editor-body");
-
-    if (inEditor && e.ctrlKey) {
+    // ── Smart pairs / editor inserts ───────────────────────────
+    if (e.ctrlKey && editorRef?.isFocused()) {
       // Ctrl+( → ()
-      if (e.key === "(") {
-        e.preventDefault();
-        editorRef?.insertPair("(", ")");
-        return;
-      }
+      if (e.key === "(") { e.preventDefault(); editorRef.insertPair("(", ")"); return; }
       // Ctrl+[ → []
-      if (e.key === "[") {
-        e.preventDefault();
-        editorRef?.insertPair("[", "]");
-        return;
-      }
+      if (e.key === "[") { e.preventDefault(); editorRef.insertPair("[", "]"); return; }
       // Ctrl+{ → {}
-      if (e.key === "{") {
-        e.preventDefault();
-        editorRef?.insertPair("{", "}");
-        return;
-      }
-      // Ctrl+- → em dash for dialogue
-      if (e.key === "-") {
-        e.preventDefault();
-        editorRef?.insertText("—");
-        return;
-      }
+      if (e.key === "{") { e.preventDefault(); editorRef.insertPair("{", "}"); return; }
+      // Ctrl+D → em dash for dialogue
+      if (e.key === "d" || e.key === "D") { e.preventDefault(); editorRef.insertText("—"); return; }
     }
   }
 </script>

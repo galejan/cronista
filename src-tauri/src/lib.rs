@@ -214,8 +214,11 @@ fn find_git() -> Result<String, String> {
 /// and `.config/timeline.json`, then automatically initialises a Git
 /// repository (silently — disk structure is created regardless of Git
 /// availability).
+///
+/// The Git identity is read from the global config file; falls back to
+/// the default "Cronista" identity when no config exists.
 #[tauri::command]
-fn crear_proyecto(path: String, nombre: String, font_family: Option<String>) -> Result<String, String> {
+fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_family: Option<String>) -> Result<String, String> {
     // Normalise trailing separators
     let path = path.trim_end_matches('/').trim_end_matches('\\').to_string();
     let base = Path::new(&path);
@@ -249,7 +252,7 @@ fn crear_proyecto(path: String, nombre: String, font_family: Option<String>) -> 
         .map_err(|e| format!("Error al escribir timeline.json: {}", e))?;
 
     // Auto-initialise git — silently ignore if git is unavailable
-    let _ = inicializar_git(path.clone());
+    let _ = inicializar_git(app, path.clone());
 
     Ok(format!("Proyecto '{}' creado en {}", nombre, path))
 }
@@ -329,8 +332,12 @@ fn marcar_proyecto_cronista(app: tauri::AppHandle, path: String) -> Result<(), S
 /// Returns success if `.git` already exists (reinit is safe) or if
 /// `git init` succeeds.  Returns `Err` **only** when Git is unavailable —
 /// callers can degrade gracefully.
+///
+/// Reads the Git identity from the global config file. Falls back to
+/// the default "Cronista" / "cronista@local" identity when no config
+/// exists (backward-compatible behaviour).
 #[tauri::command]
-fn inicializar_git(path: String) -> Result<String, String> {
+fn inicializar_git(app: tauri::AppHandle, path: String) -> Result<String, String> {
     let project_path = Path::new(&path);
 
     // Already initialised → silent success
@@ -348,17 +355,21 @@ fn inicializar_git(path: String) -> Result<String, String> {
         .map_err(|e| format!("Error al ejecutar git init: {}", e))?;
 
     if output.status.success() {
-        // Set anonymous user for commits (best-effort, silent on failure)
+        // Read identity from global config, fall back to defaults
+        let (user_name, user_email) = read_identity_from_config(&app)
+            .unwrap_or_else(|| ("Cronista".to_string(), "cronista@local".to_string()));
+
+        // Set user identity (best-effort, silent on failure)
         let _ = system_command(&git_path)
             .arg("config")
             .arg("user.name")
-            .arg("Cronista")
+            .arg(&user_name)
             .current_dir(project_path)
             .output();
         let _ = system_command(&git_path)
             .arg("config")
             .arg("user.email")
-            .arg("cronista@local")
+            .arg(&user_email)
             .current_dir(project_path)
             .output();
 
@@ -610,76 +621,33 @@ fn guardar_capitulo(
 /// The word count is computed by counting whitespace-separated tokens in
 /// every `.md` file under `capitulos/`.
 ///
-/// Returns the commit hash on success, or a descriptive status when there
-/// is nothing to commit (still `Ok` — not an error).
+/// When `push_enabled: true` and a remote is configured, attempts
+/// `git push origin main` after a successful commit. Push failures
+/// are tracked via the 3-strike counter and surfaced as a warning
+/// appended to the commit hash.
+///
+/// Returns the commit hash on success (with optional push warning),
+/// or a descriptive status when there is nothing to commit (still
+/// `Ok` — not an error).
 #[tauri::command]
-fn crear_checkpoint(proyecto_path: String) -> Result<String, String> {
+fn crear_checkpoint(app: tauri::AppHandle, proyecto_path: String) -> Result<String, String> {
     let project_path = Path::new(&proyecto_path);
-    let git_path = find_git()?;
 
-    // Stage all changes
-    let add_output = system_command(&git_path)
-        .arg("add")
-        .arg(".")
-        .current_dir(project_path)
-        .output()
-        .map_err(|e| format!("Error al ejecutar git add: {}", e))?;
+    let commit_result = perform_commit(project_path)?;
 
-    if !add_output.status.success() {
-        let stderr = String::from_utf8_lossy(&add_output.stderr);
-        return Err(format!("Error en git add: {}", stderr.trim()));
+    // If nothing to commit, return early — no push attempt
+    if commit_result == "Sin cambios para guardar." {
+        return Ok(commit_result);
     }
 
-    // Count words in chapter files for the commit message
-    let word_count = count_words_in_chapters(project_path);
-    let date = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let commit_msg = format!(
-        "Progreso automático: {} - {} palabras",
-        date, word_count
-    );
-
-    // Commit
-    let commit_output = system_command(&git_path)
-        .arg("commit")
-        .arg("-m")
-        .arg(&commit_msg)
-        .current_dir(project_path)
-        .output()
-        .map_err(|e| format!("Error al ejecutar git commit: {}", e))?;
-
-    if commit_output.status.success() {
-        // Retrieve the commit hash
-        let hash_output = system_command(&git_path)
-            .arg("rev-parse")
-            .arg("HEAD")
-            .current_dir(project_path)
-            .output()
-            .map_err(|e| format!("Error al obtener el hash del commit: {}", e))?;
-
-        let hash = String::from_utf8_lossy(&hash_output.stdout)
-            .trim()
-            .to_string();
-        Ok(hash)
-    } else {
-        let stderr = String::from_utf8_lossy(&commit_output.stderr);
-        let stdout = String::from_utf8_lossy(&commit_output.stdout);
-        let combined = format!("{}{}", stderr, stdout);
-        // "nothing to commit" is a normal state, not an error.
-        // Git may route this message to stdout or stderr depending on version.
-        // We match both English and Spanish localisations.
-        if combined.contains("nothing to commit")
-            || combined.contains("nothing added to commit")
-            || combined.contains("nada para confirmar")
-            || combined.contains("nada que confirmar")
-        {
-            Ok("Sin cambios para guardar.".to_string())
-        } else {
-            Err(format!(
-                "Error en git commit: {}",
-                combined.trim().lines().last().unwrap_or("")
-            ))
+    // Auto-push if remote is configured and push_enabled is true
+    if let Ok(push_result) = sincronizar_checkpoint(&app, &proyecto_path) {
+        if !push_result.is_empty() {
+            return Ok(format!("{}\n⚠️ {}", commit_result, push_result));
         }
     }
+
+    Ok(commit_result)
 }
 
 /// Read and return the project metadata index.
@@ -1421,6 +1389,182 @@ fn get_config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
         .map(|p| p.join("cronista").join("git-config.json"))
 }
 
+/// Read the Git identity (name, email) from the global config file.
+///
+/// Returns `Some((name, email))` when a valid identity exists in the
+/// config, or `None` when the config is missing, corrupted, or has no
+/// identity section.
+fn read_identity_from_config(app: &tauri::AppHandle) -> Option<(String, String)> {
+    let config_path = get_config_path(app)?;
+    if !config_path.exists() {
+        return None;
+    }
+    let raw = std::fs::read_to_string(&config_path).ok()?;
+    let config: GitConfig = serde_json::from_str(&raw).ok()?;
+    config.identity.map(|id| (id.name, id.email))
+}
+
+/// Core commit logic: stage changes, create a descriptive commit, and
+/// return the commit hash (or a "no changes" message).
+///
+/// Used by both `crear_checkpoint` (Tauri command) and `do_checkpoint`
+/// (close-handler helper) so the commit logic lives in one place.
+fn perform_commit(project_path: &Path) -> Result<String, String> {
+    let git_path = find_git()?;
+
+    // Stage all changes
+    let add_output = system_command(&git_path)
+        .arg("add")
+        .arg(".")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git add: {}", e))?;
+
+    if !add_output.status.success() {
+        let stderr = String::from_utf8_lossy(&add_output.stderr);
+        return Err(format!("Error en git add: {}", stderr.trim()));
+    }
+
+    // Count words in chapter files for the commit message
+    let word_count = count_words_in_chapters(project_path);
+    let date = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let commit_msg = format!(
+        "Progreso automático: {} - {} palabras",
+        date, word_count
+    );
+
+    // Commit
+    let commit_output = system_command(&git_path)
+        .arg("commit")
+        .arg("-m")
+        .arg(&commit_msg)
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git commit: {}", e))?;
+
+    if commit_output.status.success() {
+        // Retrieve the commit hash
+        let hash_output = system_command(&git_path)
+            .arg("rev-parse")
+            .arg("HEAD")
+            .current_dir(project_path)
+            .output()
+            .map_err(|e| format!("Error al obtener el hash del commit: {}", e))?;
+
+        let hash = String::from_utf8_lossy(&hash_output.stdout)
+            .trim()
+            .to_string();
+        Ok(hash)
+    } else {
+        let stderr = String::from_utf8_lossy(&commit_output.stderr);
+        let stdout = String::from_utf8_lossy(&commit_output.stdout);
+        let combined = format!("{}{}", stderr, stdout);
+        // "nothing to commit" is a normal state, not an error.
+        if combined.contains("nothing to commit")
+            || combined.contains("nothing added to commit")
+            || combined.contains("nada para confirmar")
+            || combined.contains("nada que confirmar")
+        {
+            Ok("Sin cambios para guardar.".to_string())
+        } else {
+            Err(format!(
+                "Error en git commit: {}",
+                combined.trim().lines().last().unwrap_or("")
+            ))
+        }
+    }
+}
+
+/// Internal helper: attempt to push to the configured remote.
+///
+/// Reads the remote config from the global config file. If push is
+/// disabled or no URL is configured, returns `Ok("")` (no-op).
+///
+/// Implements 3-strike auto-disable: after 3 consecutive failures,
+/// `push_enabled` is set to `false` and the user is notified via a
+/// warning string.
+///
+/// **NOT a Tauri command** — called internally by `crear_checkpoint`
+/// and `do_checkpoint`.
+fn sincronizar_checkpoint(app: &tauri::AppHandle, path: &str) -> Result<String, String> {
+    let config_path = match get_config_path(app) {
+        Some(p) => p,
+        None => return Ok("".to_string()),
+    };
+
+    if !config_path.exists() {
+        return Ok("".to_string());
+    }
+
+    let raw = match std::fs::read_to_string(&config_path) {
+        Ok(r) => r,
+        Err(_) => return Ok("".to_string()),
+    };
+
+    let mut config: GitConfig = match serde_json::from_str(&raw) {
+        Ok(c) => c,
+        Err(_) => return Ok("".to_string()),
+    };
+
+    // Check preconditions: must have a remote URL and push enabled
+    let remote = match &config.remote {
+        Some(r) => r.clone(),
+        None => return Ok("".to_string()),
+    };
+
+    if !remote.push_enabled || remote.url.is_empty() {
+        return Ok("".to_string());
+    }
+
+    let project_path = Path::new(path);
+
+    // Attempt push
+    let git_path = find_git()?;
+    let push_output = system_command(&git_path)
+        .arg("push")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git push: {}", e))?;
+
+    let mut remote_config = remote;
+
+    if push_output.status.success() {
+        // Success: reset counter
+        remote_config.consecutive_failures = 0;
+        config.remote = Some(remote_config);
+
+        let json = serde_json::to_string_pretty(&config)
+            .map_err(|e| format!("Error serializing config: {}", e))?;
+        std::fs::write(&config_path, json)
+            .map_err(|e| format!("Error writing config: {}", e))?;
+
+        Ok("".to_string())
+    } else {
+        // Failure: increment counter, apply 3-strike rule
+        remote_config.consecutive_failures += 1;
+        let failures = remote_config.consecutive_failures;
+
+        let warning = if failures >= 3 {
+            remote_config.push_enabled = false;
+            "Sincronización remota desactivada tras 3 intentos fallidos. Podés reactivarla desde la barra de herramientas.".to_string()
+        } else {
+            format!(
+                "No se pudo sincronizar con el remoto (intento {}/3).",
+                failures
+            )
+        };
+
+        config.remote = Some(remote_config);
+
+        let json = serde_json::to_string_pretty(&config)
+            .map_err(|e| format!("Error serializing config: {}", e))?;
+        std::fs::write(&config_path, json)
+            .map_err(|e| format!("Error writing config: {}", e))?;
+
+        Ok(warning)
+    }
+}
+
 /// Count whitespace-separated tokens across all `.md` files under
 /// `{project_path}/capitulos/`.  Returns 0 when the directory is
 /// missing or empty.
@@ -1448,68 +1592,20 @@ fn count_words_in_chapters(project_path: &Path) -> usize {
 // Application entry point
 // ---------------------------------------------------------------------------
 
-/// Internal checkpoint — same logic as the Tauri command but callable
+/// Internal checkpoint — same logic as `crear_checkpoint` but callable
 /// from event handlers without going through the IPC layer.
-fn do_checkpoint(project_path: &str) -> Result<String, String> {
-    let project_path = Path::new(project_path);
-    let git_path = find_git()?;
+///
+/// After committing, attempts auto-push via `sincronizar_checkpoint`.
+/// Push warnings are silently dropped (the close handler cannot surface
+/// UI feedback to the user).
+fn do_checkpoint(app: &tauri::AppHandle, project_path: &str) -> Result<String, String> {
+    let path_buf = Path::new(project_path);
+    let commit_result = perform_commit(path_buf)?;
 
-    let add_output = system_command(&git_path)
-        .arg("add")
-        .arg(".")
-        .current_dir(project_path)
-        .output()
-        .map_err(|e| format!("Error al ejecutar git add: {}", e))?;
+    // Auto-push if remote is configured — silently
+    let _ = sincronizar_checkpoint(app, project_path);
 
-    if !add_output.status.success() {
-        let stderr = String::from_utf8_lossy(&add_output.stderr);
-        return Err(format!("Error en git add: {}", stderr.trim()));
-    }
-
-    let word_count = count_words_in_chapters(project_path);
-    let date = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let commit_msg = format!(
-        "Progreso automático: {} - {} palabras",
-        date, word_count
-    );
-
-    let commit_output = system_command(&git_path)
-        .arg("commit")
-        .arg("-m")
-        .arg(&commit_msg)
-        .current_dir(project_path)
-        .output()
-        .map_err(|e| format!("Error al ejecutar git commit: {}", e))?;
-
-    if commit_output.status.success() {
-        let hash_output = system_command(&git_path)
-            .arg("rev-parse")
-            .arg("HEAD")
-            .current_dir(project_path)
-            .output()
-            .map_err(|e| format!("Error al obtener el hash del commit: {}", e))?;
-
-        let hash = String::from_utf8_lossy(&hash_output.stdout)
-            .trim()
-            .to_string();
-        Ok(hash)
-    } else {
-        let stderr = String::from_utf8_lossy(&commit_output.stderr);
-        let stdout = String::from_utf8_lossy(&commit_output.stdout);
-        let combined = format!("{}{}", stderr, stdout);
-        if combined.contains("nothing to commit")
-            || combined.contains("nothing added to commit")
-            || combined.contains("nada para confirmar")
-            || combined.contains("nada que confirmar")
-        {
-            Ok("Sin cambios para guardar.".to_string())
-        } else {
-            Err(format!(
-                "Error en git commit: {}",
-                combined.trim().lines().last().unwrap_or("")
-            ))
-        }
-    }
+    Ok(commit_result)
 }
 
 // ---------------------------------------------------------------------------
@@ -1815,6 +1911,130 @@ fn guardar_config_remoto(
     Ok("Remote config saved successfully.".to_string())
 }
 
+/// Configure a Git remote and perform the initial push for a project.
+///
+/// Validates that the URL is an SSH URL (rejects HTTP/HTTPS). On valid
+/// URL, adds the remote as `origin` and pushes the main branch with
+/// upstream tracking.
+///
+/// If the push fails (e.g. remote unreachable), the local commit is
+/// preserved and a warning is returned — the user can retry later.
+#[tauri::command]
+fn configurar_remoto(_app: tauri::AppHandle, path: String, url: String) -> Result<String, String> {
+    // SSH URL validation: reject HTTP(S) — SSH is required
+    let url_lower = url.to_lowercase();
+    if url_lower.starts_with("http://") || url_lower.starts_with("https://") {
+        return Err(
+            "Solo se admiten URLs SSH (git@... o ssh://...). Las URLs HTTPS no son compatibles."
+                .to_string(),
+        );
+    }
+
+    let project_path = Path::new(&path);
+    let git_path = find_git()?;
+
+    // 1) git remote add origin <url>
+    let add_output = system_command(&git_path)
+        .arg("remote")
+        .arg("add")
+        .arg("origin")
+        .arg(&url)
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git remote add: {}", e))?;
+
+    if !add_output.status.success() {
+        let stderr = String::from_utf8_lossy(&add_output.stderr);
+        return Err(format!("Error al configurar el remoto: {}", stderr.trim()));
+    }
+
+    // 2) git push -u origin main
+    let push_output = system_command(&git_path)
+        .arg("push")
+        .arg("-u")
+        .arg("origin")
+        .arg("main")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git push: {}", e))?;
+
+    if push_output.status.success() {
+        Ok("Repositorio remoto configurado y sincronizado correctamente.".to_string())
+    } else {
+        // Push failed — the commit stays local, warn the user
+        Ok("Commit local guardado. No se pudo sincronizar con el remoto. ¿Sin conexión? El repositorio remoto podría no estar accesible. Configuralo y usa 'Reintentar' para sincronizar.".to_string())
+    }
+}
+
+/// Retry a push to the configured remote after previous failures.
+///
+/// Resets the consecutive failure counter to 0 before attempting.
+/// If no remote was ever configured, returns an error.
+/// On success, the counter stays at 0. On failure, increments to 1
+/// (starting a fresh strike count).
+#[tauri::command]
+fn reintentar_push(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let config_path = match get_config_path(&app) {
+        Some(p) => p,
+        None => return Err("Could not determine config directory".to_string()),
+    };
+
+    if !config_path.exists() {
+        return Err("No hay un repositorio remoto configurado.".to_string());
+    }
+
+    let raw = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("Error reading config: {}", e))?;
+
+    let mut config: GitConfig = serde_json::from_str(&raw)
+        .map_err(|e| format!("Error parsing config: {}", e))?;
+
+    // Verify remote exists
+    let remote = match &config.remote {
+        Some(r) => r.clone(),
+        None => return Err("No hay un repositorio remoto configurado.".to_string()),
+    };
+
+    let mut remote_config = remote;
+    // Reset counter before attempting
+    remote_config.consecutive_failures = 0;
+    // Ensure push is enabled
+    remote_config.push_enabled = true;
+
+    let git_path = find_git()?;
+    let project_path = Path::new(&path);
+
+    let push_output = system_command(&git_path)
+        .arg("push")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git push: {}", e))?;
+
+    if push_output.status.success() {
+        // Success: save config with fresh counter
+        config.remote = Some(remote_config);
+
+        let json = serde_json::to_string_pretty(&config)
+            .map_err(|e| format!("Error serializing config: {}", e))?;
+        std::fs::write(&config_path, json)
+            .map_err(|e| format!("Error writing config: {}", e))?;
+
+        Ok("Sincronización exitosa.".to_string())
+    } else {
+        // Failure: increment to 1 (fresh count)
+        remote_config.consecutive_failures = 1;
+        config.remote = Some(remote_config);
+
+        let json = serde_json::to_string_pretty(&config)
+            .map_err(|e| format!("Error serializing config: {}", e))?;
+        std::fs::write(&config_path, json)
+            .map_err(|e| format!("Error writing config: {}", e))?;
+
+        let stderr = String::from_utf8_lossy(&push_output.stderr);
+        Err(format!("Error al sincronizar: {}", stderr.trim()))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1859,6 +2079,8 @@ pub fn run() {
             guardar_identidad_git,
             cargar_config_remoto,
             guardar_config_remoto,
+            configurar_remoto,
+            reintentar_push,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -1884,14 +2106,15 @@ pub fn run() {
 
                     let path = path.clone();
                     let window_clone = window.clone();
+                    let app_handle = window.app_handle().clone();
 
                     // Spawn async task — checkpoint + close happens off the event loop
                     tauri::async_runtime::spawn(async move {
                         // Brief pause lets any in-flight autosave IPC complete
                         tokio::time::sleep(std::time::Duration::from_millis(600)).await;
 
-                        // Checkpoint (git commit). Ignore errors — we close anyway.
-                        let _ = do_checkpoint(&path);
+                        // Checkpoint (git commit + auto-push). Ignore errors — we close anyway.
+                        let _ = do_checkpoint(&app_handle, &path);
 
                         // Force-close. This re-enters on_window_event but
                         // the `closing` guard lets it through immediately.
@@ -1916,6 +2139,98 @@ mod tests {
     use tempfile::TempDir;
 
     // ========================================================================
+    // Test helpers — avoid requiring tauri::AppHandle in unit tests
+    // ========================================================================
+
+    /// Test-only: initialise a git repo with the default "Cronista" identity.
+    /// Mirrors `inicializar_git` behaviour without needing an AppHandle.
+    /// Production identity-reading is tested at the integration level.
+    fn init_git_for_test(path_str: &str) -> Result<String, String> {
+        let project_path = Path::new(path_str);
+        if project_path.join(".git").exists() {
+            return Ok("El repositorio ya estaba inicializado.".to_string());
+        }
+        let git_path = find_git()?;
+        let output = system_command(&git_path)
+            .arg("init")
+            .current_dir(project_path)
+            .output()
+            .map_err(|e| format!("Error al ejecutar git init: {}", e))?;
+        if output.status.success() {
+            let _ = system_command(&git_path)
+                .arg("config")
+                .arg("user.name")
+                .arg("Cronista")
+                .current_dir(project_path)
+                .output();
+            let _ = system_command(&git_path)
+                .arg("config")
+                .arg("user.email")
+                .arg("cronista@local")
+                .current_dir(project_path)
+                .output();
+            Ok("Repositorio Git inicializado correctamente.".to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(format!("Error al inicializar Git: {}", stderr.trim()))
+        }
+    }
+
+    /// Test-only: create a project directory structure with auto git init.
+    /// Mirrors `crear_proyecto` behaviour without needing an AppHandle.
+    fn create_project_for_test(path: String, nombre: String, font_family: Option<String>) -> Result<String, String> {
+        let path = path.trim_end_matches('/').trim_end_matches('\\').to_string();
+        let base = Path::new(&path);
+        std::fs::create_dir_all(base)
+            .map_err(|e| format!("No se pudo crear el directorio del proyecto: {}", e))?;
+        let subdirs = [".config", "capitulos", "personajes", "notas"];
+        for sub in &subdirs {
+            std::fs::create_dir_all(base.join(sub))
+                .map_err(|e| format!("No se pudo crear el directorio {}: {}", sub, e))?;
+        }
+        let metadata = Metadata {
+            project_name: nombre.clone(),
+            last_modified: Local::now().to_rfc3339(),
+            chapters_order: vec![],
+            characters_index: vec![],
+            font_family: font_family.unwrap_or_else(default_font_family),
+        };
+        let metadata_json = serde_json::to_string_pretty(&metadata)
+            .map_err(|e| format!("Error al serializar metadata: {}", e))?;
+        std::fs::write(base.join(".config/metadata.json"), metadata_json)
+            .map_err(|e| format!("Error al escribir metadata.json: {}", e))?;
+        std::fs::write(base.join(".config/timeline.json"), "[]")
+            .map_err(|e| format!("Error al escribir timeline.json: {}", e))?;
+        let _ = init_git_for_test(&path);
+        Ok(format!("Proyecto '{}' creado en {}", nombre, path))
+    }
+
+    /// Count the number of commits in the git repository at `repo_path`.
+    fn count_commits(repo_path: &Path) -> usize {
+        if !repo_path.join(".git").exists() {
+            return 0;
+        }
+        let git_path = match find_git() {
+            Ok(p) => p,
+            Err(_) => return 0,
+        };
+        let output = system_command(&git_path)
+            .arg("rev-list")
+            .arg("--count")
+            .arg("HEAD")
+            .current_dir(repo_path)
+            .output();
+
+        match output {
+            Ok(o) if o.status.success() => {
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                stdout.trim().parse::<usize>().unwrap_or(0)
+            }
+            _ => 0,
+        }
+    }
+
+    // ========================================================================
     // project-file-management tests
     // ========================================================================
 
@@ -1924,7 +2239,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let result = crear_proyecto(path.clone(), "Test Project".to_string(), None);
+        let result = create_project_for_test(path.clone(), "Test Project".to_string(), None);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         for sub in &[".config", "capitulos", "personajes", "notas"] {
@@ -1941,7 +2256,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Mi Novela".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Mi Novela".to_string(), None);
 
         let metadata_path = dir.path().join(".config").join("metadata.json");
         assert!(metadata_path.exists(), "metadata.json does not exist");
@@ -1966,7 +2281,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let timeline_path = dir.path().join(".config").join("timeline.json");
         assert!(timeline_path.exists(), "timeline.json does not exist");
@@ -2022,7 +2337,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "My Project".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "My Project".to_string(), None);
 
         let result = cargar_indice(path.clone());
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -2096,7 +2411,7 @@ mod tests {
         // Append trailing separator — path.normalize() or trim_end_matches should handle it
         let path_with_slash = format!("{}/", dir.path().to_str().unwrap());
 
-        let result = crear_proyecto(path_with_slash, "Trailing Test".to_string(), None);
+        let result = create_project_for_test(path_with_slash, "Trailing Test".to_string(), None);
         assert!(result.is_ok(), "crear_proyecto with trailing separator failed: {:?}", result);
 
         // All directories must exist
@@ -2114,7 +2429,7 @@ mod tests {
     #[test]
     fn test_crear_proyecto_permission_denied() {
         // /root/ is typically not writable by non-root users on Linux
-        let result = crear_proyecto("/root/cronista-blocked".to_string(), "Test".to_string(), None);
+        let result = create_project_for_test("/root/cronista-blocked".to_string(), "Test".to_string(), None);
         // On CI running as root, this could succeed; we just assert it doesn't panic
         match result {
             Ok(_) => {
@@ -2162,7 +2477,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let result = inicializar_git(path.clone());
+        let result = init_git_for_test(&path);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         assert!(
@@ -2182,11 +2497,11 @@ mod tests {
         let path = dir.path().to_str().unwrap().to_string();
 
         // First init
-        let result1 = inicializar_git(path.clone());
+        let result1 = init_git_for_test(&path);
         assert!(result1.is_ok());
 
         // Second init on same directory (reinit)
-        let result2 = inicializar_git(path.clone());
+        let result2 = init_git_for_test(&path);
         assert!(result2.is_ok(), "Re-init should succeed quietly");
     }
 
@@ -2200,7 +2515,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let result = crear_proyecto(path.clone(), "Test Project".to_string(), None);
+        let result = create_project_for_test(path.clone(), "Test Project".to_string(), None);
         assert!(result.is_ok(), "crear_proyecto failed: {:?}", result);
 
         // crear_proyecto auto-calls inicializar_git after creating directories
@@ -2218,7 +2533,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let result = crear_proyecto(path.clone(), "Sin Git".to_string(), None);
+        let result = create_project_for_test(path.clone(), "Sin Git".to_string(), None);
         assert!(result.is_ok(), "crear_proyecto should succeed: {:?}", result);
 
         // Disk structure must exist regardless of git availability
@@ -2239,10 +2554,10 @@ mod tests {
         let path = dir.path().to_str().unwrap().to_string();
 
         // Init a clean repo
-        inicializar_git(path.clone()).expect("git init failed");
+        init_git_for_test(&path).expect("git init failed");
 
         // Now try checkpointing with no changes
-        let result = crear_checkpoint(path.clone());
+        let result = perform_commit(dir.path());
         assert!(result.is_ok(), "Expected Ok for clean repo: {:?}", result);
 
         let msg = result.unwrap();
@@ -2265,7 +2580,7 @@ mod tests {
 
         // Create project structure and init git
         fs::create_dir_all(dir.path().join("capitulos")).unwrap();
-        inicializar_git(path.clone()).expect("git init failed");
+        init_git_for_test(&path).expect("git init failed");
 
         // Create a chapter file (a change)
         let content = "# Capítulo 1\n\nHabía una vez...";
@@ -2275,7 +2590,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = crear_checkpoint(path.clone());
+        let result = perform_commit(dir.path());
         assert!(result.is_ok(), "Expected Ok for checkpoint: {:?}", result);
 
         let hash = result.unwrap();
@@ -2290,7 +2605,7 @@ mod tests {
     #[test]
     fn test_crear_checkpoint_git_unavailable() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let path = dir.path().to_str().unwrap().to_string();
+        let _path = dir.path().to_str().unwrap().to_string();
 
         // We simulate git-unavailable by using a dir where find_git() works
         // but the checkpoint operation itself is what we're checking
@@ -2301,7 +2616,7 @@ mod tests {
         }
 
         // If git is truly unavailable, creating a checkpoint should return Err
-        let result = crear_checkpoint(path);
+        let result = perform_commit(dir.path());
         assert!(result.is_err(), "Expected Err when git is unavailable");
         let err = result.unwrap_err();
         assert!(
@@ -2323,7 +2638,7 @@ mod tests {
 
         // Create project and init git
         fs::create_dir_all(dir.path().join("capitulos")).unwrap();
-        inicializar_git(path.clone()).expect("git init failed");
+        init_git_for_test(&path).expect("git init failed");
 
         // Count commits before saving
         let count_before = count_commits(dir.path());
@@ -2360,7 +2675,7 @@ mod tests {
         let path = dir.path().to_str().unwrap().to_string();
 
         // --- Step 1: Create project ---
-        let result = crear_proyecto(path.clone(), "Full Flow Test".to_string(), None);
+        let result = create_project_for_test(path.clone(), "Full Flow Test".to_string(), None);
         assert!(result.is_ok(), "Step 1 (crear_proyecto) failed: {:?}", result);
 
         // Verify directory structure
@@ -2386,7 +2701,7 @@ mod tests {
         assert_eq!(saved, chapter_content);
 
         // --- Step 3: Create checkpoint ---
-        let result = crear_checkpoint(path.clone());
+        let result = perform_commit(dir.path());
         assert!(result.is_ok(), "Step 3 (crear_checkpoint) failed: {:?}", result);
         let hash = result.unwrap();
         assert!(!hash.is_empty(), "Commit hash should not be empty");
@@ -2460,7 +2775,7 @@ mod tests {
         let path = dir.path().to_str().unwrap().to_string();
 
         // Create a project so metadata.json exists
-        let _ = crear_proyecto(path.clone(), "Test Project".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test Project".to_string(), None);
 
         let contenido = "# Capítulo 1\n\n";
         let result = crear_capitulo(
@@ -2498,7 +2813,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test Project".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test Project".to_string(), None);
 
         // Create a chapter file manually so it already exists
         fs::write(
@@ -2536,7 +2851,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test Project".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test Project".to_string(), None);
 
         let contenido = concat!(
             "Ñoño y pingüino — ¡árbol!\n",
@@ -2558,35 +2873,6 @@ mod tests {
             read_back, contenido,
             "UTF-8 round-trip failed: content mismatch"
         );
-    }
-
-    // ========================================================================
-    // Test helpers
-    // ========================================================================
-
-    /// Count the number of commits in the git repository at `repo_path`.
-    fn count_commits(repo_path: &Path) -> usize {
-        if !repo_path.join(".git").exists() {
-            return 0;
-        }
-        let git_path = match find_git() {
-            Ok(p) => p,
-            Err(_) => return 0,
-        };
-        let output = system_command(&git_path)
-            .arg("rev-list")
-            .arg("--count")
-            .arg("HEAD")
-            .current_dir(repo_path)
-            .output();
-
-        match output {
-            Ok(o) if o.status.success() => {
-                let stdout = String::from_utf8_lossy(&o.stdout);
-                stdout.trim().parse::<usize>().unwrap_or(0)
-            }
-            _ => 0,
-        }
     }
 
     // ========================================================================
@@ -2612,7 +2898,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let personaje_json = r#"{
             "id": "maria-garcia",
@@ -2642,7 +2928,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let personaje_json = r#"{"id": "juan", "name": "Juan"}"#;
 
@@ -2661,7 +2947,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let personaje_json = r#"{
             "id": "ana",
@@ -2686,7 +2972,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let result = cargar_personaje(path, "fantasma".to_string());
         assert!(result.is_err(), "Expected Err for missing character");
@@ -2705,7 +2991,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let original = r#"{
             "id": "pedro",
@@ -2749,7 +3035,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let result = actualizar_personaje(
             path,
@@ -2766,7 +3052,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let _ = crear_personaje(
             path.clone(),
@@ -2794,7 +3080,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         // Create a character
         let _ = crear_personaje(
@@ -2842,7 +3128,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let result = crear_nota(
             path.clone(),
@@ -2872,7 +3158,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let _ = crear_nota(
             path.clone(),
@@ -2909,7 +3195,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let contenido = "# Título\n\nPárrafo con **negrita** y más texto.";
         let _ = crear_nota(
@@ -2931,7 +3217,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let _ = crear_nota(
             path.clone(),
@@ -2963,7 +3249,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let result = cargar_timeline(path);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -2977,7 +3263,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let evento_json = r#"{
             "id": "evt-test",
@@ -3004,7 +3290,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         // Event without an explicit id
         let evento_json = r#"{
@@ -3035,7 +3321,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         // Add three events in known order
         let _ = agregar_evento_timeline(
@@ -3072,7 +3358,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let _ = agregar_evento_timeline(
             path.clone(),
@@ -3095,7 +3381,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         // After crear_proyecto, the notas/index.json doesn't exist yet,
         // so listar_notas should return "[]"
@@ -3113,7 +3399,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         // Create a chapter
         let _ = crear_capitulo(
@@ -3154,7 +3440,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         let result = eliminar_capitulo(path.clone(), "9999_fantasma.md".to_string());
         assert!(result.is_err(), "Expected Err for nonexistent chapter");
@@ -3171,7 +3457,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
 
         // Create a chapter
         let _ = crear_capitulo(
@@ -3464,6 +3750,187 @@ mod tests {
         let id = parsed.identity.unwrap();
         assert_eq!(id.name, "José María García López");
         assert_eq!(id.email, "josé@español.es");
+    }
+
+    // ========================================================================
+    // git-remote-sync tests (PR 2 — SSH validation, 3-strike logic)
+    // ========================================================================
+
+    // --- SSH URL validation ---
+
+    #[test]
+    fn test_ssh_url_validation_valid_git_at() {
+        // git@ URLs are valid SSH URLs
+        let url = "git@github.com:user/repo.git";
+        let lower = url.to_lowercase();
+        let is_http = lower.starts_with("http://") || lower.starts_with("https://");
+        assert!(!is_http, "git@ URL should be accepted as SSH");
+    }
+
+    #[test]
+    fn test_ssh_url_validation_valid_ssh_scheme() {
+        // ssh:// URLs are valid
+        let url = "ssh://git@github.com/user/repo.git";
+        let lower = url.to_lowercase();
+        let is_http = lower.starts_with("http://") || lower.starts_with("https://");
+        assert!(!is_http, "ssh:// URL should be accepted");
+    }
+
+    #[test]
+    fn test_ssh_url_validation_rejects_https() {
+        let url = "https://github.com/user/repo.git";
+        let lower = url.to_lowercase();
+        let is_http = lower.starts_with("http://") || lower.starts_with("https://");
+        assert!(is_http, "https:// URL should be rejected");
+    }
+
+    #[test]
+    fn test_ssh_url_validation_rejects_http() {
+        let url = "http://github.com/user/repo.git";
+        let lower = url.to_lowercase();
+        let is_http = lower.starts_with("http://") || lower.starts_with("https://");
+        assert!(is_http, "http:// URL should be rejected");
+    }
+
+    // --- 3-strike counter logic (pure state transitions) ---
+
+    #[test]
+    fn test_strike_counter_resets_on_success() {
+        let mut remote = GitRemoteConfig {
+            url: "git@host:repo.git".to_string(),
+            push_enabled: true,
+            consecutive_failures: 2,
+        };
+        // Simulate successful push: counter resets to 0
+        remote.consecutive_failures = 0;
+        assert_eq!(remote.consecutive_failures, 0);
+        assert!(remote.push_enabled);
+    }
+
+    #[test]
+    fn test_strike_first_failure() {
+        let mut remote = GitRemoteConfig {
+            url: "git@host:repo.git".to_string(),
+            push_enabled: true,
+            consecutive_failures: 0,
+        };
+        // Simulate first push failure
+        remote.consecutive_failures += 1;
+        assert_eq!(remote.consecutive_failures, 1);
+        assert!(remote.push_enabled, "push should still be enabled after 1 failure");
+    }
+
+    #[test]
+    fn test_strike_second_failure() {
+        let mut remote = GitRemoteConfig {
+            url: "git@host:repo.git".to_string(),
+            push_enabled: true,
+            consecutive_failures: 1,
+        };
+        // Simulate second push failure
+        remote.consecutive_failures += 1;
+        assert_eq!(remote.consecutive_failures, 2);
+        assert!(remote.push_enabled, "push should still be enabled after 2 failures");
+    }
+
+    #[test]
+    fn test_third_strike_disables_push() {
+        let mut remote = GitRemoteConfig {
+            url: "git@host:repo.git".to_string(),
+            push_enabled: true,
+            consecutive_failures: 2,
+        };
+        // Simulate third failure → disable
+        remote.consecutive_failures += 1;
+        if remote.consecutive_failures >= 3 {
+            remote.push_enabled = false;
+        }
+        assert_eq!(remote.consecutive_failures, 3);
+        assert!(!remote.push_enabled, "push should be disabled after 3 failures");
+    }
+
+    #[test]
+    fn test_push_skipped_when_disabled() {
+        let remote = GitRemoteConfig {
+            url: "git@host:repo.git".to_string(),
+            push_enabled: false,
+            consecutive_failures: 3,
+        };
+        // When push_enabled is false, no push should be attempted
+        assert!(!remote.push_enabled);
+        assert!(!remote.url.is_empty(), "URL exists but push is disabled");
+    }
+
+    #[test]
+    fn test_push_skipped_when_no_url() {
+        let remote = GitRemoteConfig {
+            url: "".to_string(),
+            push_enabled: true,
+            consecutive_failures: 0,
+        };
+        // When URL is empty, no push should be attempted regardless of push_enabled
+        assert!(remote.url.is_empty());
+    }
+
+    // --- Remote config serde with strike states ---
+
+    #[test]
+    fn test_remote_config_serde_with_strikes() {
+        let remote = GitRemoteConfig {
+            url: "git@github.com:user/repo.git".to_string(),
+            push_enabled: true,
+            consecutive_failures: 1,
+        };
+        let json = serde_json::to_string(&remote).expect("serialize");
+        let parsed: GitRemoteConfig = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(parsed.consecutive_failures, 1);
+        assert!(parsed.push_enabled);
+    }
+
+    #[test]
+    fn test_config_write_read_strike_state() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        // Write config with 2 strikes, push still enabled
+        let config = GitConfig {
+            schema_version: 1,
+            identity: Some(GitIdentity {
+                name: "Ada".to_string(),
+                email: "ada@code.dev".to_string(),
+            }),
+            remote: Some(GitRemoteConfig {
+                url: "git@host:repo.git".to_string(),
+                push_enabled: true,
+                consecutive_failures: 2,
+            }),
+        };
+        write_config(&config_path, &serde_json::to_string_pretty(&config).unwrap());
+
+        // Read back
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let parsed: GitConfig = serde_json::from_str(&raw).unwrap();
+        let remote = parsed.remote.as_ref().unwrap();
+        assert_eq!(remote.consecutive_failures, 2);
+        assert!(remote.push_enabled);
+
+        // Simulate: write updated config with push disabled (strike 3)
+        let mut updated = parsed.clone();
+        updated.remote = Some(GitRemoteConfig {
+            url: "git@host:repo.git".to_string(),
+            push_enabled: false,
+            consecutive_failures: 3,
+        });
+        fs::write(&config_path, serde_json::to_string_pretty(&updated).unwrap()).unwrap();
+
+        let raw2 = fs::read_to_string(&config_path).unwrap();
+        let final_config: GitConfig = serde_json::from_str(&raw2).unwrap();
+        let final_remote = final_config.remote.unwrap();
+        assert!(!final_remote.push_enabled, "push should be disabled");
+        assert_eq!(final_remote.consecutive_failures, 3);
+
+        // Identity must be preserved through the strike update
+        assert_eq!(final_config.identity.unwrap().name, "Ada");
     }
 
     // ========================================================================

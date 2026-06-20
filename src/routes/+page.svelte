@@ -581,6 +581,12 @@
     });
   }
 
+  /** Show the export modal. */
+  function abrirExportModal(): void {
+    console.log("[cronista] Opening export modal");
+    exportModal = true;
+  }
+
   // ── Characters CRUD ─────────────────────────────────────────
 
   async function refreshPersonajes(): Promise<void> {
@@ -1215,8 +1221,8 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-overlay" role="dialog" tabindex="-1"
     aria-label={t("export.title")}
-    onclick={() => (exportModal = false)}
-    onkeydown={(e) => e.key === "Escape" && (exportModal = false)}>
+    onclick={() => { exportModal = false; }}
+    onkeydown={(e) => { if (e.key === "Escape") exportModal = false; }}>
     <div class="modal-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
       <h2>📦 {t("export.title")}</h2>
       <p class="modal-desc">{t("export.desc")}</p>
@@ -1508,7 +1514,7 @@
               ✕ {t("toolbar.closeProject")}
             </button>
             <span class="footer-sep"></span>
-            <button class="footer-btn" onclick={() => (exportModal = true)} title={t("export.title")}>
+            <button class="footer-btn" onclick={abrirExportModal} title={t("export.title")}>
               📦 {t("export.export")}
             </button>
           </div>

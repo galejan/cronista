@@ -155,42 +155,85 @@
   // Uses untrack() so state reads inside the callback do NOT
   // create reactive dependencies. The handler is registered once
   // and reads the latest state at close time.
-  let closing = $state(false); // guard against recursive close() re-entry
+  //
+  // IMPORTANT: call destroy() instead of close() to force-close
+  // without re-entering onCloseRequested. Tauri v2's close() from
+  // within the handler can deadlock because the Rust side is still
+  // waiting for the JS promise to resolve.
+  let closing = $state(false);
 
   $effect(() => {
     let unlisten: (() => void) | undefined;
 
     try {
-      getCurrentWindow().onCloseRequested(async (event) => {
-        // untrack: read latest state without re-registering the handler
+      const w = getCurrentWindow();
+      console.log("[cronista:close] Registering onCloseRequested handler");
+
+      w.onCloseRequested(async (event) => {
         const path = untrack(() => projectPath);
-        if (!path) return;
-
         const gitOk = untrack(() => gitEnabled);
-        if (!gitOk) return; // Project created without git — skip checkpoint
+        const chapter = untrack(() => activeChapter);
+        const content = untrack(() => editorContent);
 
-        if (untrack(() => closing)) return; // Already closing — let it through
+        console.log("[cronista:close] ── Close requested ──");
+        console.log("[cronista:close]   projectPath:", path || "(none)");
+        console.log("[cronista:close]   gitEnabled:", gitOk);
+        console.log("[cronista:close]   closing:", untrack(() => closing));
+        console.log("[cronista:close]   activeChapter:", chapter || "(none)");
+        console.log("[cronista:close]   editorContent length:", content?.length ?? 0);
+
+        if (!path) {
+          console.log("[cronista:close] → no project open, letting window close normally");
+          return;
+        }
+
+        if (!gitOk) {
+          console.log("[cronista:close] → git disabled, letting window close normally");
+          return;
+        }
+
+        if (untrack(() => closing)) {
+          console.log("[cronista:close] → already closing, letting through");
+          return;
+        }
         closing = true;
 
-        event.preventDefault(); // Wait for save before closing
+        console.log("[cronista:close] → preventing default, will save + checkpoint");
+        event.preventDefault();
 
         try {
-          const chapter = untrack(() => activeChapter);
-          const content = untrack(() => editorContent);
           if (chapter && content) {
-            await guardarCapitulo(path, chapter, content);
+            console.log("[cronista:close] → saving chapter:", chapter);
+            const saveResult = await guardarCapitulo(path, chapter, content);
+            console.log("[cronista:close]   save result:", saveResult);
           }
-          await crearCheckpoint(path);
-        } catch { /* silent */ }
+          console.log("[cronista:close] → creating checkpoint...");
+          const checkpointResult = await crearCheckpoint(path);
+          console.log("[cronista:close]   checkpoint result:", checkpointResult);
+        } catch (err) {
+          console.error("[cronista:close]   save/checkpoint FAILED:", err);
+        }
 
-        // Now close for real — closing=true prevents re-entry
-        getCurrentWindow().close();
-      }).then((fn) => { unlisten = fn; }).catch(() => { /* not in Tauri */ });
-    } catch {
-      // Not in Tauri.
+        console.log("[cronista:close] → destroying window");
+        try {
+          getCurrentWindow().destroy();
+        } catch (e) {
+          console.error("[cronista:close]   destroy FAILED:", e);
+        }
+      }).then((fn) => {
+        unlisten = fn;
+        console.log("[cronista:close] Handler registered successfully");
+      }).catch((err) => {
+        console.error("[cronista:close] Failed to register handler:", err);
+      });
+    } catch (err) {
+      console.error("[cronista:close] Not in Tauri:", err);
     }
 
-    return () => { unlisten?.(); };
+    return () => {
+      console.log("[cronista:close] Effect cleanup — unregistering handler");
+      unlisten?.();
+    };
   });
 
   /** Editor component reference — exposes setContent(html) + toggleHeading(level). */

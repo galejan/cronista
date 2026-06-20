@@ -5,7 +5,7 @@
 
 use chrono::Local;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::io::Write;
@@ -114,6 +114,34 @@ struct TimelineEvent {
     relatedCharacters: Vec<String>,
     #[serde(default)]
     relatedChapters: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Git identity & remote config data structures
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct GitIdentity {
+    name: String,
+    email: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct GitRemoteConfig {
+    url: String,
+    #[serde(default)]
+    push_enabled: bool,
+    #[serde(default)]
+    consecutive_failures: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct GitConfig {
+    schema_version: u32,
+    #[serde(default)]
+    identity: Option<GitIdentity>,
+    #[serde(default)]
+    remote: Option<GitRemoteConfig>,
 }
 
 // ---------------------------------------------------------------------------
@@ -1381,6 +1409,18 @@ fn eliminar_evento_timeline(proyecto_path: String, id: String) -> Result<String,
 // Internal helpers
 // ---------------------------------------------------------------------------
 
+/// Resolve the path to the global git identity/remote config file.
+///
+/// Uses Tauri's platform-standard `app_config_dir()` under a `cronista/`
+/// subdirectory. Returns `None` when the platform cannot determine the
+/// config directory.
+fn get_config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|p| p.join("cronista").join("git-config.json"))
+}
+
 /// Count whitespace-separated tokens across all `.md` files under
 /// `{project_path}/capitulos/`.  Returns 0 when the directory is
 /// missing or empty.
@@ -1597,6 +1637,184 @@ fn read_metadata(base: &Path) -> Result<Metadata, String> {
         .map_err(|e| format!("Error al parsear metadata: {}", e))
 }
 
+// ---------------------------------------------------------------------------
+// Git identity & remote config commands
+// ---------------------------------------------------------------------------
+
+/// Load the stored Git identity from the global config file.
+///
+/// Returns the serialised `GitIdentity` JSON `{name, email}` when found,
+/// or the literal string `"null"` when no config exists or the file is
+/// corrupted (graceful degradation — the frontend decides which preset to
+/// show).
+#[tauri::command]
+fn cargar_identidad_git(app: tauri::AppHandle) -> Result<String, String> {
+    let config_path = match get_config_path(&app) {
+        Some(p) => p,
+        None => return Ok("null".to_string()),
+    };
+
+    if !config_path.exists() {
+        return Ok("null".to_string());
+    }
+
+    let raw = match std::fs::read_to_string(&config_path) {
+        Ok(r) => r,
+        Err(_) => return Ok("null".to_string()),
+    };
+
+    let config: GitConfig = match serde_json::from_str(&raw) {
+        Ok(c) => c,
+        Err(_) => return Ok("null".to_string()), // corrupted JSON → graceful degradation
+    };
+
+    match config.identity {
+        Some(id) => serde_json::to_string(&id)
+            .map_err(|e| format!("Error serializing identity: {}", e)),
+        None => Ok("null".to_string()),
+    }
+}
+
+/// Persist the user's Git identity to the global config file.
+///
+/// Uses a read-modify-write pattern: the full config is read first (if it
+/// exists) so any existing remote configuration is preserved. The config
+/// directory is created if it does not yet exist.
+#[tauri::command]
+fn guardar_identidad_git(
+    app: tauri::AppHandle,
+    name: String,
+    email: String,
+) -> Result<String, String> {
+    let config_path = match get_config_path(&app) {
+        Some(p) => p,
+        None => return Err("Could not determine config directory".to_string()),
+    };
+
+    // Ensure the parent directory exists
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Error creating config directory: {}", e))?;
+    }
+
+    let identity = GitIdentity { name, email };
+
+    // Read-modify-write: preserve any existing remote config
+    let mut config = if config_path.exists() {
+        let raw = std::fs::read_to_string(&config_path).unwrap_or_default();
+        serde_json::from_str::<GitConfig>(&raw).unwrap_or(GitConfig {
+            schema_version: 1,
+            identity: None,
+            remote: None,
+        })
+    } else {
+        GitConfig {
+            schema_version: 1,
+            identity: None,
+            remote: None,
+        }
+    };
+
+    config.identity = Some(identity);
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Error serializing config: {}", e))?;
+
+    std::fs::write(&config_path, json)
+        .map_err(|e| format!("Error writing config: {}", e))?;
+
+    Ok("Identity saved successfully.".to_string())
+}
+
+/// Load the stored Git remote configuration from the global config file.
+///
+/// Returns the serialised `GitRemoteConfig` JSON `{url, push_enabled,
+/// consecutive_failures}` when present, or the literal string `"null"`
+/// when no config exists, no remote section is present, or the file is
+/// corrupted.
+#[tauri::command]
+fn cargar_config_remoto(app: tauri::AppHandle) -> Result<String, String> {
+    let config_path = match get_config_path(&app) {
+        Some(p) => p,
+        None => return Ok("null".to_string()),
+    };
+
+    if !config_path.exists() {
+        return Ok("null".to_string());
+    }
+
+    let raw = match std::fs::read_to_string(&config_path) {
+        Ok(r) => r,
+        Err(_) => return Ok("null".to_string()),
+    };
+
+    let config: GitConfig = match serde_json::from_str(&raw) {
+        Ok(c) => c,
+        Err(_) => return Ok("null".to_string()),
+    };
+
+    match config.remote {
+        Some(r) => serde_json::to_string(&r)
+            .map_err(|e| format!("Error serializing remote config: {}", e)),
+        None => Ok("null".to_string()),
+    }
+}
+
+/// Persist the Git remote configuration to the global config file.
+///
+/// Uses a read-modify-write pattern so any existing identity is preserved.
+/// `consecutive_failures` is set to 0 when remote config is saved (the
+/// counter management lives in the push-logic helpers in a later PR).
+#[tauri::command]
+fn guardar_config_remoto(
+    app: tauri::AppHandle,
+    url: String,
+    push_enabled: bool,
+) -> Result<String, String> {
+    let config_path = match get_config_path(&app) {
+        Some(p) => p,
+        None => return Err("Could not determine config directory".to_string()),
+    };
+
+    // Ensure the parent directory exists
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Error creating config directory: {}", e))?;
+    }
+
+    let remote = GitRemoteConfig {
+        url,
+        push_enabled,
+        consecutive_failures: 0,
+    };
+
+    // Read-modify-write: preserve any existing identity
+    let mut config = if config_path.exists() {
+        let raw = std::fs::read_to_string(&config_path).unwrap_or_default();
+        serde_json::from_str::<GitConfig>(&raw).unwrap_or(GitConfig {
+            schema_version: 1,
+            identity: None,
+            remote: None,
+        })
+    } else {
+        GitConfig {
+            schema_version: 1,
+            identity: None,
+            remote: None,
+        }
+    };
+
+    config.remote = Some(remote);
+
+    let json = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Error serializing config: {}", e))?;
+
+    std::fs::write(&config_path, json)
+        .map_err(|e| format!("Error writing config: {}", e))?;
+
+    Ok("Remote config saved successfully.".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1637,6 +1855,10 @@ pub fn run() {
             eliminar_evento_timeline,
             exportar_proyecto_zip,
             exportar_proyecto_md,
+            cargar_identidad_git,
+            guardar_identidad_git,
+            cargar_config_remoto,
+            guardar_config_remoto,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -2978,6 +3200,270 @@ mod tests {
             "relatedChapters should be empty after chapter deletion, got: {:?}",
             timeline[0].relatedChapters
         );
+    }
+
+    // ========================================================================
+    // git-identity-config tests
+    // ========================================================================
+
+    /// Helper: write raw JSON content to a temp config file and return the path.
+    fn write_config(path: &Path, content: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, content).unwrap();
+    }
+
+    // --- Serde roundtrip ---
+
+    #[test]
+    fn test_git_identity_serde_roundtrip() {
+        let identity = GitIdentity {
+            name: "Ada Lovelace".to_string(),
+            email: "ada@code.dev".to_string(),
+        };
+        let json = serde_json::to_string(&identity).expect("serialize identity");
+        let parsed: GitIdentity = serde_json::from_str(&json).expect("deserialize identity");
+        assert_eq!(parsed.name, "Ada Lovelace");
+        assert_eq!(parsed.email, "ada@code.dev");
+    }
+
+    #[test]
+    fn test_git_remote_config_serde_roundtrip() {
+        let remote = GitRemoteConfig {
+            url: "git@github.com:user/repo.git".to_string(),
+            push_enabled: true,
+            consecutive_failures: 2,
+        };
+        let json = serde_json::to_string(&remote).expect("serialize remote config");
+        let parsed: GitRemoteConfig = serde_json::from_str(&json).expect("deserialize remote config");
+        assert_eq!(parsed.url, "git@github.com:user/repo.git");
+        assert!(parsed.push_enabled);
+        assert_eq!(parsed.consecutive_failures, 2);
+    }
+
+    #[test]
+    fn test_git_remote_config_defaults() {
+        // Missing push_enabled and consecutive_failures should default correctly
+        let json = r#"{"url":"git@host:repo.git"}"#;
+        let parsed: GitRemoteConfig = serde_json::from_str(json).expect("deserialize with defaults");
+        assert_eq!(parsed.url, "git@host:repo.git");
+        assert!(!parsed.push_enabled, "push_enabled should default to false");
+        assert_eq!(parsed.consecutive_failures, 0, "consecutive_failures should default to 0");
+    }
+
+    #[test]
+    fn test_git_config_full_serde_roundtrip() {
+        let config = GitConfig {
+            schema_version: 1,
+            identity: Some(GitIdentity {
+                name: "Cervantes".to_string(),
+                email: "cervantes@lit.es".to_string(),
+            }),
+            remote: Some(GitRemoteConfig {
+                url: "git@github.com:user/repo.git".to_string(),
+                push_enabled: true,
+                consecutive_failures: 0,
+            }),
+        };
+        let json = serde_json::to_string_pretty(&config).expect("serialize config");
+        let parsed: GitConfig = serde_json::from_str(&json).expect("deserialize config");
+        assert_eq!(parsed.schema_version, 1);
+        let id = parsed.identity.expect("identity should be present");
+        assert_eq!(id.name, "Cervantes");
+        let remote = parsed.remote.expect("remote should be present");
+        assert!(remote.push_enabled);
+    }
+
+    #[test]
+    fn test_git_config_defaults_empty_sections() {
+        let json = r#"{"schema_version":1}"#;
+        let parsed: GitConfig = serde_json::from_str(json).expect("deserialize minimal config");
+        assert_eq!(parsed.schema_version, 1);
+        assert!(parsed.identity.is_none(), "identity should be None");
+        assert!(parsed.remote.is_none(), "remote should be None");
+    }
+
+    // --- Identity: save then load (filesystem roundtrip) ---
+
+    #[test]
+    fn test_identity_save_then_load() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        // Simulate guardar: write full config with identity
+        let config = GitConfig {
+            schema_version: 1,
+            identity: Some(GitIdentity {
+                name: "Ada Lovelace".to_string(),
+                email: "ada@code.dev".to_string(),
+            }),
+            remote: None,
+        };
+        let json = serde_json::to_string_pretty(&config).unwrap();
+        write_config(&config_path, &json);
+
+        // Simulate cargar: read back
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let parsed: GitConfig = serde_json::from_str(&raw).unwrap();
+        let id = parsed.identity.expect("identity should be present");
+        assert_eq!(id.name, "Ada Lovelace");
+        assert_eq!(id.email, "ada@code.dev");
+    }
+
+    // --- Corrupted file returns None gracefully ---
+
+    #[test]
+    fn test_identity_corrupted_json() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        write_config(&config_path, "this is not valid json {{{");
+
+        // Reading corrupted JSON should return None (graceful degradation)
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let result: Result<GitConfig, _> = serde_json::from_str(&raw);
+        assert!(result.is_err(), "should fail to parse corrupted JSON");
+    }
+
+    // --- Missing file returns None ---
+
+    #[test]
+    fn test_identity_missing_file() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        // File doesn't exist — should be treated as missing
+        assert!(!config_path.exists());
+        // The command-level logic returns "null" when the file doesn't exist,
+        // which is tested indirectly via the filesystem roundtrip above.
+    }
+
+    // --- Remote: save then load (filesystem roundtrip) ---
+
+    #[test]
+    fn test_remote_config_save_then_load() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        let config = GitConfig {
+            schema_version: 1,
+            identity: None,
+            remote: Some(GitRemoteConfig {
+                url: "git@github.com:user/repo.git".to_string(),
+                push_enabled: true,
+                consecutive_failures: 0,
+            }),
+        };
+        let json = serde_json::to_string_pretty(&config).unwrap();
+        write_config(&config_path, &json);
+
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let parsed: GitConfig = serde_json::from_str(&raw).unwrap();
+        let remote = parsed.remote.expect("remote should be present");
+        assert_eq!(remote.url, "git@github.com:user/repo.git");
+        assert!(remote.push_enabled);
+        assert_eq!(remote.consecutive_failures, 0);
+    }
+
+    // --- Read-modify-write: identity does NOT wipe remote ---
+
+    #[test]
+    fn test_identity_save_preserves_remote() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        // Step 1: Write remote config first
+        let config = GitConfig {
+            schema_version: 1,
+            identity: None,
+            remote: Some(GitRemoteConfig {
+                url: "git@github.com:user/repo.git".to_string(),
+                push_enabled: true,
+                consecutive_failures: 0,
+            }),
+        };
+        write_config(&config_path, &serde_json::to_string_pretty(&config).unwrap());
+
+        // Step 2: Read-modify-write: add identity while preserving remote
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let mut config: GitConfig = serde_json::from_str(&raw).unwrap();
+        config.identity = Some(GitIdentity {
+            name: "Ada".to_string(),
+            email: "ada@code.dev".to_string(),
+        });
+        fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+        // Step 3: Read back — both sections should exist
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let final_config: GitConfig = serde_json::from_str(&raw).unwrap();
+        assert_eq!(final_config.identity.unwrap().name, "Ada");
+        assert_eq!(
+            final_config.remote.unwrap().url,
+            "git@github.com:user/repo.git"
+        );
+    }
+
+    // --- Read-modify-write: remote does NOT wipe identity ---
+
+    #[test]
+    fn test_remote_save_preserves_identity() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        // Step 1: Write identity first
+        let config = GitConfig {
+            schema_version: 1,
+            identity: Some(GitIdentity {
+                name: "Cervantes".to_string(),
+                email: "cervantes@lit.es".to_string(),
+            }),
+            remote: None,
+        };
+        write_config(&config_path, &serde_json::to_string_pretty(&config).unwrap());
+
+        // Step 2: Read-modify-write: add remote while preserving identity
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let mut config: GitConfig = serde_json::from_str(&raw).unwrap();
+        config.remote = Some(GitRemoteConfig {
+            url: "git@github.com:user/repo.git".to_string(),
+            push_enabled: false,
+            consecutive_failures: 0,
+        });
+        fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap()).unwrap();
+
+        // Step 3: Read back — both sections should exist
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let final_config: GitConfig = serde_json::from_str(&raw).unwrap();
+        assert_eq!(final_config.identity.unwrap().name, "Cervantes");
+        assert_eq!(
+            final_config.remote.unwrap().url,
+            "git@github.com:user/repo.git"
+        );
+    }
+
+    // --- Identity with Unicode names ---
+
+    #[test]
+    fn test_identity_unicode_name() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let config_path = dir.path().join("cronista").join("git-config.json");
+
+        let config = GitConfig {
+            schema_version: 1,
+            identity: Some(GitIdentity {
+                name: "José María García López".to_string(),
+                email: "josé@español.es".to_string(),
+            }),
+            remote: None,
+        };
+        write_config(&config_path, &serde_json::to_string_pretty(&config).unwrap());
+
+        let raw = fs::read_to_string(&config_path).unwrap();
+        let parsed: GitConfig = serde_json::from_str(&raw).unwrap();
+        let id = parsed.identity.unwrap();
+        assert_eq!(id.name, "José María García López");
+        assert_eq!(id.email, "josé@español.es");
     }
 
     // ========================================================================

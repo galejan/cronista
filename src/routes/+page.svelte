@@ -55,6 +55,21 @@
     }
   });
 
+  // ── Set window title (hide dev URL) ──────────────────────────
+  $effect(() => {
+    try {
+      getCurrentWindow().setTitle("Cronista");
+    } catch { /* not in Tauri */ }
+  });
+  $effect(() => {
+    const stored = localStorage.getItem("cronista-theme");
+    if (stored === "light" || stored === "dark") {
+      theme = stored;
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      theme = "dark";
+    }
+  });
+
   // ── Restore zoom level ────────────────────────────────────────
   $effect(() => {
     const stored = localStorage.getItem("cronista-zoom");
@@ -1504,14 +1519,11 @@
 
           <!-- Row 2: project management -->
           <div class="footer-row">
-            <button class="footer-btn" onclick={() => abrirProyecto()} title={t("toolbar.openProjectTitle")}>
-              📂 {t("toolbar.openProject")}
-            </button>
             <button class="footer-btn" onclick={nuevoProyectoHandler} title={t("toolbar.newProjectTitle")}>
               ✨ {t("toolbar.newProject")}
             </button>
-            <button class="footer-btn" onclick={() => cerrarProyecto()} title={t("toolbar.closeProjectTitle")}>
-              ✕ {t("toolbar.closeProject")}
+            <button class="footer-btn" onclick={() => abrirProyecto()} title={t("toolbar.openProjectTitle")}>
+              📂 {t("toolbar.openProject")}
             </button>
             <span class="footer-sep"></span>
             <button class="footer-btn" onclick={async () => {
@@ -1524,6 +1536,20 @@
               }
             }} title={t("export.zipTitle")}>
               🗜️ {t("export.export")}
+            </button>
+            <button class="footer-btn" onclick={async () => {
+              try {
+                const result = await exportarProyectoMd(projectPath);
+                alert(t("export.mdSuccess") + "\n" + result);
+              } catch (e) {
+                alert(t("export.error") + " " + e);
+              }
+            }} title={t("export.mdTitle")}>
+              📄 {t("export.share")}
+            </button>
+            <span class="footer-sep"></span>
+            <button class="footer-btn" onclick={() => cerrarProyecto()} title={t("toolbar.closeProjectTitle")}>
+              ✕ {t("toolbar.closeProject")}
             </button>
           </div>
 

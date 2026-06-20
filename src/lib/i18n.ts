@@ -101,6 +101,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     // ── Export ──────────────────────────────────────────────
     "export.export": "Exportar",
+    "export.share": "Compartir",
     "export.title": "Exportar proyecto",
     "export.desc":
       "Elegí el formato de exportación. Los archivos se guardan en la carpeta exportaciones/ dentro del proyecto.",
@@ -328,6 +329,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     // ── Export ──────────────────────────────────────────────
     "export.export": "Export",
+    "export.share": "Share",
     "export.title": "Export project",
     "export.desc":
       "Choose export format. Files are saved in the exportaciones/ folder inside the project.",

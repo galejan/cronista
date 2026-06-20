@@ -1316,37 +1316,37 @@
           </div>
         {/if}
       </div>
-
-      <!-- Git status footer -->
-      {#if gitStatus !== "unknown"}
-        <div class="sidebar-git-footer">
-          {#if gitStatus === "active"}
-            <span class="git-indicator git-active" title={t("git.activeTitle")}>
-              🟢 {t("git.active")}
-            </span>
-            <button class="git-log-link" onclick={cargarGitLog}>
-              {t("git.viewSessions")} →
-            </button>
-          {:else if gitStatus === "not-initialized"}
-            <button
-              class="git-indicator git-warn"
-              onclick={() => { gitInitNombre = t("git.defaultName"); gitInitEmail = t("git.defaultEmail"); gitInitModal = true; }}
-              title={t("git.notInitTitle")}
-            >
-              🟠 {t("git.notInit")}
-            </button>
-          {:else if gitStatus === "unavailable"}
-            <button
-              class="git-indicator git-off"
-              onclick={() => (gitHelpModal = true)}
-              title={t("git.unavailableTitle")}
-            >
-              🔴 {t("git.unavailable")}
-            </button>
-          {/if}
-        </div>
-      {/if}
     </div>
+
+    <!-- Git status footer — pinned below scrollable content -->
+    {#if gitStatus !== "unknown"}
+      <div class="sidebar-git-footer">
+        {#if gitStatus === "active"}
+          <span class="git-indicator git-active" title={t("git.activeTitle")}>
+            🟢 {t("git.active")}
+          </span>
+          <button class="git-log-link" onclick={cargarGitLog}>
+            {t("git.viewSessions")} →
+          </button>
+        {:else if gitStatus === "not-initialized"}
+          <button
+            class="git-indicator git-warn"
+            onclick={() => { gitInitNombre = t("git.defaultName"); gitInitEmail = t("git.defaultEmail"); gitInitModal = true; }}
+            title={t("git.notInitTitle")}
+          >
+            🟠 {t("git.notInit")}
+          </button>
+        {:else if gitStatus === "unavailable"}
+          <button
+            class="git-indicator git-off"
+            onclick={() => (gitHelpModal = true)}
+            title={t("git.unavailableTitle")}
+          >
+            🔴 {t("git.unavailable")}
+          </button>
+        {/if}
+      </div>
+    {/if}
   </aside>
 
   <!-- Editor area (60 % when visible, 100 % when sidebar collapsed) -->
@@ -2435,10 +2435,10 @@
     gap: 0.4rem;
     flex-wrap: wrap;
     padding: 0.5rem 0.75rem;
-    margin: 0 -1rem -1rem;
     border-top: 1px solid #e2e8f0;
     font-size: 0.7rem;
     background: #f8fafc;
+    flex-shrink: 0;
   }
 
   :global(.dark) .sidebar-git-footer {

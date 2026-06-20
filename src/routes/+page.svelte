@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import Editor from "$lib/components/Editor.svelte";
   import { debounce } from "$lib/debounce";
   import { t, setLang, lang } from "$lib/i18n";
@@ -151,24 +152,38 @@
   let saveStatus = $state<"" | "saved" | "unsaved" | "saving">("");
 
   // ── Auto-commit on close (Tauri window event) ─────────────────
+  // Uses untrack() so state reads inside the callback do NOT
+  // create reactive dependencies. The handler is registered once
+  // and reads the latest state at close time.
+  let closing = $state(false); // guard against recursive close() re-entry
+
   $effect(() => {
     let unlisten: (() => void) | undefined;
 
     try {
       getCurrentWindow().onCloseRequested(async (event) => {
-        if (!projectPath) return;
-        if (!gitEnabled) return; // Project created without git — skip checkpoint
+        // untrack: read latest state without re-registering the handler
+        const path = untrack(() => projectPath);
+        if (!path) return;
+
+        const gitOk = untrack(() => gitEnabled);
+        if (!gitOk) return; // Project created without git — skip checkpoint
+
+        if (untrack(() => closing)) return; // Already closing — let it through
+        closing = true;
 
         event.preventDefault(); // Wait for save before closing
 
         try {
-          if (activeChapter && editorContent) {
-            await guardarCapitulo(projectPath, activeChapter, editorContent);
+          const chapter = untrack(() => activeChapter);
+          const content = untrack(() => editorContent);
+          if (chapter && content) {
+            await guardarCapitulo(path, chapter, content);
           }
-          await crearCheckpoint(projectPath);
+          await crearCheckpoint(path);
         } catch { /* silent */ }
 
-        // Now close for real
+        // Now close for real — closing=true prevents re-entry
         getCurrentWindow().close();
       }).then((fn) => { unlisten = fn; }).catch(() => { /* not in Tauri */ });
     } catch {

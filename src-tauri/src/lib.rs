@@ -243,6 +243,97 @@ fn inicializar_git(path: String) -> Result<String, String> {
     }
 }
 
+/// Initialize git with custom author and create the first commit.
+///
+/// Stores author info in `.config/git-config.json` for future reference.
+/// After `git init` + user config, stages everything and creates an
+/// initial commit: "Primera piedra — {project_name}".
+#[tauri::command]
+fn inicializar_git_con_autor(
+    path: String,
+    nombre: String,
+    email: String,
+) -> Result<String, String> {
+    let project_path = Path::new(&path);
+
+    if project_path.join(".git").exists() {
+        return Ok("El repositorio ya estaba inicializado.".to_string());
+    }
+
+    let git_path = find_git()?;
+
+    // git init
+    let output = Command::new(&git_path)
+        .arg("init")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git init: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Error al inicializar Git: {}", stderr.trim()));
+    }
+
+    // Configure author
+    let _ = Command::new(&git_path)
+        .arg("config")
+        .arg("user.name")
+        .arg(&nombre)
+        .current_dir(project_path)
+        .output();
+    let _ = Command::new(&git_path)
+        .arg("config")
+        .arg("user.email")
+        .arg(&email)
+        .current_dir(project_path)
+        .output();
+
+    // Save config for future reference
+    let config = serde_json::json!({ "name": nombre, "email": email });
+    let config_json = serde_json::to_string_pretty(&config).unwrap_or_default();
+    let _ = std::fs::write(
+        project_path.join(".config/git-config.json"),
+        config_json,
+    );
+
+    // First commit — "Primera piedra"
+    let _ = Command::new(&git_path)
+        .arg("add")
+        .arg(".")
+        .current_dir(project_path)
+        .output();
+
+    let commit_msg = "Primera piedra ✍️";
+    let commit_output = Command::new(&git_path)
+        .arg("commit")
+        .arg("-m")
+        .arg(commit_msg)
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error en primer commit: {}", e))?;
+
+    if commit_output.status.success() {
+        Ok("Repositorio Git inicializado y primer commit creado.".to_string())
+    } else {
+        // "nothing to commit" is fine — project might be empty
+        let stderr = String::from_utf8_lossy(&commit_output.stderr);
+        if stderr.contains("nothing to commit") || stderr.contains("nothing added") {
+            Ok("Repositorio Git inicializado (sin archivos para commit aún).".to_string())
+        } else {
+            Err(format!("Error en primer commit: {}", stderr.trim()))
+        }
+    }
+}
+
+/// Check if the project has a git repository initialized (.git directory).
+///
+/// Returns true when `<project>/.git` exists, regardless of whether git
+/// the binary is installed.
+#[tauri::command]
+fn verificar_git_inicializado(path: String) -> Result<bool, String> {
+    Ok(Path::new(&path).join(".git").exists())
+}
+
 /// Detect whether Git is installed on the system.
 ///
 /// Returns `true` when `find_git()` locates a valid Git binary.
@@ -1201,6 +1292,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             crear_proyecto,
             inicializar_git,
+            inicializar_git_con_autor,
+            verificar_git_inicializado,
             detectar_git,
             set_active_project,
             guardar_capitulo,

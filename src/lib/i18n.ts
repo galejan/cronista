@@ -59,6 +59,34 @@ const translations: Record<Lang, Record<string, string>> = {
     "toolbar.openProjectTitle": "Abrir otro proyecto (Ctrl+O)",
     "toolbar.closeProjectTitle": "Cerrar proyecto",
 
+    // ── Git status ──────────────────────────────────────────
+    "git.active": "Versionado activo",
+    "git.activeTitle": "Git inicializado — los cambios se registran automáticamente",
+    "git.notInit": "Versionado no disponible (inicializar)",
+    "git.notInitTitle": "Inicializar control de versiones para este proyecto",
+    "git.unavailable": "Versionado no disponible (falta Git)",
+    "git.unavailableTitle": "Git no encontrado en el sistema",
+    "git.defaultName": "Miguel de Cervantes",
+    "git.defaultEmail": "manco@lepanto.org",
+
+    "git.initModalTitle": "Inicializar control de versiones",
+    "git.initModalDesc":
+      "Los datos que se indican a continuación se guardan únicamente en la configuración local del proyecto y nunca son compartidos por Cronista.",
+    "git.initModalName": "Nombre para los commits:",
+    "git.initModalEmail": "Correo electrónico:",
+    "git.initButton": "Inicializar repositorio",
+    "git.initSuccess": "Repositorio Git inicializado correctamente. ¡Primer commit creado!",
+    "git.initError": "Error al inicializar Git:",
+
+    "git.helpTitle": "Control de versiones con Git",
+    "git.helpWhy": "¿Por qué usar versionado?",
+    "git.helpWhyDesc":
+      "Cada vez que guardás, Cronista crea un punto de control (commit) automático. Esto te permite volver atrás en el tiempo, recuperar versiones anteriores de tu texto y tener un historial completo de tu proceso creativo. Como máquina del tiempo para tu novela.",
+    "git.helpInstall": "Instalar Git",
+    "git.helpInstallDesc":
+      "Git es gratuito y está disponible para Windows, macOS y Linux. Instalalo desde <a href='https://git-scm.com/downloads'>git-scm.com</a>. Una vez instalado, reiniciá Cronista y volvé a abrir tu proyecto.",
+    "git.helpClose": "Entendido",
+
     // ── Sidebar tabs ───────────────────────────────────────
     "tabs.chapters": "Capítulos",
     "tabs.characters": "Personajes",
@@ -216,6 +244,34 @@ const translations: Record<Lang, Record<string, string>> = {
     "toolbar.unsaved": "Unsaved",
     "toolbar.openProjectTitle": "Open another project (Ctrl+O)",
     "toolbar.closeProjectTitle": "Close project",
+
+    // ── Git status ──────────────────────────────────────────
+    "git.active": "Versioning active",
+    "git.activeTitle": "Git initialized — changes are tracked automatically",
+    "git.notInit": "Versioning unavailable (initialize)",
+    "git.notInitTitle": "Initialize version control for this project",
+    "git.unavailable": "Versioning unavailable (Git missing)",
+    "git.unavailableTitle": "Git not found on this system",
+    "git.defaultName": "William Shakespeare",
+    "git.defaultEmail": "bard@avon.org",
+
+    "git.initModalTitle": "Initialize version control",
+    "git.initModalDesc":
+      "The name and email below are stored only in the local project configuration and are never shared by Cronista.",
+    "git.initModalName": "Name for commits:",
+    "git.initModalEmail": "Email:",
+    "git.initButton": "Initialize repository",
+    "git.initSuccess": "Git repository initialized. First commit created!",
+    "git.initError": "Error initializing Git:",
+
+    "git.helpTitle": "Version control with Git",
+    "git.helpWhy": "Why use version control?",
+    "git.helpWhyDesc":
+      "Every time you save, Cronista creates an automatic checkpoint (commit). This lets you travel back in time, recover previous versions of your text, and keep a complete history of your creative process. Like a time machine for your novel.",
+    "git.helpInstall": "Install Git",
+    "git.helpInstallDesc":
+      "Git is free and available for Windows, macOS, and Linux. Install it from <a href='https://git-scm.com/downloads'>git-scm.com</a>. Once installed, restart Cronista and reopen your project.",
+    "git.helpClose": "Got it",
 
     // ── Sidebar tabs ───────────────────────────────────────
     "tabs.chapters": "Chapters",

@@ -22,10 +22,12 @@
     eliminarNota,
     eliminarPersonaje,
     guardarCapitulo,
+    inicializarGitConAutor,
     listarNotas,
     listarPersonajes,
     reordenarTimeline,
     setActiveProject,
+    verificarGitInicializado,
   } from "$lib/tauri";
   import { documentDir } from "@tauri-apps/api/path";
   import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -146,6 +148,11 @@
   // ── Editor & project state ──────────────────────────────────
   let projectPath = $state("");
   let gitEnabled = $state(false);
+  let gitStatus = $state<"active" | "unavailable" | "not-initialized" | "unknown">("unknown");
+  let gitInitModal = $state(false);
+  let gitInitNombre = $state("");
+  let gitInitEmail = $state("");
+  let gitHelpModal = $state(false);
   let chapters = $state<string[]>([]);
   let pendingDelete = $state<string | null>(null);
   let activeChapter = $state("");
@@ -372,7 +379,7 @@
         console.log("[cronista] Project created:", msg);
         projectPath = path;
         setActiveProject(path);
-        gitEnabled = await detectarGit();
+        await actualizarGitStatus(path);
         await refreshChapters();
       } catch (e) {
         console.error("[cronista] Failed to create project:", e);
@@ -426,13 +433,12 @@
       const meta = JSON.parse(raw);
       projectPath = path;
       setActiveProject(path);
-      gitEnabled = await detectarGit();
+      await actualizarGitStatus(path);
       chapters = meta.chapters_order ?? [];
       console.log("[cronista] Project opened:", meta.project_name, chapters);
 
-      // Warn if git is not available (checkpoints will fail silently)
-      const gitOk = await detectarGit();
-      if (!gitOk) {
+      // Warn if git is unavailable
+      if (gitStatus === "unavailable") {
         console.warn("[cronista] Git not detected — automatic version control disabled");
         alert(t("git.notInstalled") + "\n\n" + t("git.notInstalledDesc"));
       }
@@ -475,9 +481,32 @@
     timeline = [];
     timelineVisible = false;
     gitEnabled = false;
+    gitStatus = "unknown";
 
     // Keep last project for auto-reopen on next launch
     // (deliberately NOT removing from localStorage)
+  }
+
+  /** Determine git status: active / unavailable / not-initialized */
+  async function actualizarGitStatus(path: string): Promise<void> {
+    try {
+      const gitOk = await detectarGit();
+      if (!gitOk) {
+        gitStatus = "unavailable";
+        gitEnabled = false;
+        return;
+      }
+      const initialized = await verificarGitInicializado(path);
+      if (initialized) {
+        gitStatus = "active";
+        gitEnabled = true;
+      } else {
+        gitStatus = "not-initialized";
+        gitEnabled = true; // Binary exists, just needs init
+      }
+    } catch {
+      gitStatus = "unknown";
+    }
   }
 
   // ── Characters CRUD ─────────────────────────────────────────
@@ -801,7 +830,7 @@
         const meta = JSON.parse(raw);
         projectPath = lastPath;
         setActiveProject(lastPath);
-        gitEnabled = await detectarGit();
+        await actualizarGitStatus(lastPath);
         chapters = meta.chapters_order ?? [];
         console.log("[cronista] Project reopened:", meta.project_name, chapters);
 
@@ -1323,6 +1352,29 @@
               ✕
             </button>
             <span class="toolbar-sep">|</span>
+            <!-- Git status indicator -->
+            {#if gitStatus === "active"}
+              <span class="git-indicator git-active" title={t("git.activeTitle")}>
+                🟢 {t("git.active")}
+              </span>
+            {:else if gitStatus === "not-initialized"}
+              <button
+                class="git-indicator git-warn"
+                onclick={() => { gitInitNombre = t("git.defaultName"); gitInitEmail = t("git.defaultEmail"); gitInitModal = true; }}
+                title={t("git.notInitTitle")}
+              >
+                🟠 {t("git.notInit")}
+              </button>
+            {:else if gitStatus === "unavailable"}
+              <button
+                class="git-indicator git-off"
+                onclick={() => (gitHelpModal = true)}
+                title={t("git.unavailableTitle")}
+              >
+                🔴 {t("git.unavailable")}
+              </button>
+            {/if}
+            <span class="toolbar-sep">|</span>
             <button class="toolbar-btn" onclick={crearCapituloNuevo} title={t("toolbar.newChapterTitle")}>
               {t("toolbar.newChapter")}
             </button>
@@ -1454,6 +1506,95 @@
           <tr><td><kbd>F1</kbd> o <kbd>?</kbd></td><td>{t("help.shortcuts.toggleHelp")}</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if gitInitModal}
+  <!-- Git init modal — configure author and initialize -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    role="dialog"
+    tabindex="-1"
+    aria-label={t("git.initModalTitle")}
+    onkeydown={(e) => e.key === "Escape" && (gitInitModal = false)}
+  >
+    <div class="modal-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+      <h2>{t("git.initModalTitle")}</h2>
+      <p class="modal-desc">{t("git.initModalDesc")}</p>
+
+      <label class="modal-field">
+        {t("git.initModalName")}
+        <input
+          type="text"
+          bind:value={gitInitNombre}
+          class="modal-input"
+        />
+      </label>
+
+      <label class="modal-field">
+        {t("git.initModalEmail")}
+        <input
+          type="email"
+          bind:value={gitInitEmail}
+          class="modal-input"
+        />
+      </label>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick={() => (gitInitModal = false)}>
+          {t("common.cancel")}
+        </button>
+        <button
+          class="btn-primary"
+          onclick={async () => {
+            try {
+              await inicializarGitConAutor(projectPath, gitInitNombre, gitInitEmail);
+              await actualizarGitStatus(projectPath);
+              gitInitModal = false;
+              alert(t("git.initSuccess"));
+            } catch (e) {
+              alert(t("git.initError") + " " + e);
+            }
+          }}
+        >
+          {t("git.initButton")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if gitHelpModal}
+  <!-- Git help panel — shown when git is not installed -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    role="dialog"
+    tabindex="-1"
+    aria-label={t("git.helpTitle")}
+    onclick={() => (gitHelpModal = false)}
+    onkeydown={(e) => e.key === "Escape" && (gitHelpModal = false)}
+  >
+    <div class="modal-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+      <h2>{t("git.helpTitle")}</h2>
+
+      <div class="help-section">
+        <h3>{t("git.helpWhy")}</h3>
+        <p>{t("git.helpWhyDesc")}</p>
+      </div>
+
+      <div class="help-section">
+        <h3>{t("git.helpInstall")}</h3>
+        <p>{@html t("git.helpInstallDesc")}</p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-primary" onclick={() => (gitHelpModal = false)}>
+          {t("git.helpClose")}
+        </button>
       </div>
     </div>
   </div>
@@ -2553,5 +2694,156 @@
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+
+  /* ── Git indicator ──────────────────────────────────────────── */
+  .git-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    background: none;
+    cursor: default;
+  }
+
+  button.git-indicator {
+    cursor: pointer;
+  }
+
+  button.git-indicator:hover {
+    filter: brightness(0.95);
+  }
+
+  .git-active {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+  }
+
+  :global(.dark) .git-active {
+    background: #052e16;
+    color: #86efac;
+    border-color: #166534;
+  }
+
+  .git-warn {
+    background: #ffedd5;
+    color: #9a3412;
+    border-color: #fdba74;
+  }
+
+  :global(.dark) .git-warn {
+    background: #451a03;
+    color: #fdba74;
+    border-color: #9a3412;
+  }
+
+  .git-off {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+  }
+
+  :global(.dark) .git-off {
+    background: #450a0a;
+    color: #fca5a5;
+    border-color: #991b1b;
+  }
+
+  /* ── Generic modal overlay ──────────────────────────────────── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 120ms ease;
+  }
+
+  .modal-panel {
+    background: #ffffff;
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    max-width: 440px;
+    width: 90vw;
+    padding: 1.5rem;
+  }
+
+  :global(.dark) .modal-panel {
+    background: #1e293b;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+
+  .modal-panel h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  :global(.dark) .modal-panel h2 {
+    color: #f1f5f9;
+  }
+
+  .modal-desc {
+    margin: 0 0 1rem;
+    font-size: 0.8125rem;
+    color: #64748b;
+    line-height: 1.5;
+  }
+
+  :global(.dark) .modal-desc {
+    color: #94a3b8;
+  }
+
+  .modal-field {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #475569;
+  }
+
+  :global(.dark) .modal-field {
+    color: #cbd5e1;
+  }
+
+  .modal-input {
+    display: block;
+    width: 100%;
+    margin-top: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    background: #ffffff;
+    color: #1e293b;
+    box-sizing: border-box;
+  }
+
+  :global(.dark) .modal-input {
+    background: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+
+  .modal-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
   }
 </style>

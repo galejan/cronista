@@ -11,6 +11,20 @@ export async function inicializarGit(path: string): Promise<string> {
   return invoke("inicializar_git", { path });
 }
 
+export async function inicializarGitConAutor(
+  path: string,
+  nombre: string,
+  email: string,
+): Promise<string> {
+  return invoke("inicializar_git_con_autor", { path, nombre, email });
+}
+
+export async function verificarGitInicializado(
+  path: string,
+): Promise<boolean> {
+  return invoke("verificar_git_inicializado", { path });
+}
+
 export async function detectarGit(): Promise<boolean> {
   return invoke("detectar_git");
 }

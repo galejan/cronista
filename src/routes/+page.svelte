@@ -1684,10 +1684,20 @@
 {/if}
 
 <style>
+  /* ── Prevent overscroll bounce on the whole window ──────────── */
+  :global(html),
+  :global(body) {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+  }
+
   /* ── Layout ────────────────────────────────────────────────── */
   .app-layout {
     display: grid;
     height: 100vh;
+    overflow: hidden;
+    overscroll-behavior: none;
     transition: grid-template-columns 200ms ease;
   }
 
@@ -1753,6 +1763,7 @@
   .sidebar-content {
     flex: 1;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 1rem;
   }
 
@@ -2053,6 +2064,7 @@
   .editor-body {
     flex: 1;
     overflow-y: auto;
+    overscroll-behavior: contain;
     min-width: 0;
   }
 

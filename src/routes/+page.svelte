@@ -1061,14 +1061,6 @@
           {:else}
             <p class="empty-hint">{t("chapters.empty")}</p>
           {/if}
-
-          <button class="btn-load" onclick={() => {
-            pendingDelete = null;
-            const fn = prompt(t("chapters.loadPrompt"));
-            if (fn) cargarCapituloActual(fn.trim());
-          }}>
-            {t("chapters.load")}
-          </button>
         </div>
       {/if}
 
@@ -1400,7 +1392,7 @@
             </button>
           </div>
 
-          <!-- Row 3: save + versioning -->
+          <!-- Row 3: save -->
           <div class="footer-row">
             <button
               class="footer-btn"
@@ -1420,20 +1412,25 @@
                     ? t("toolbar.unsaved")
                     : ""}
             </span>
-            <span class="footer-sep"></span>
-            {#if gitStatus === "active"}
-              <span class="git-indicator git-active" title={t("git.activeTitle")}>🟢</span>
-              <button class="git-log-link" onclick={cargarGitLog}>{t("git.viewSessions")} →</button>
-            {:else if gitStatus === "not-initialized"}
-              <button class="git-indicator git-warn"
-                onclick={() => { gitInitNombre = t("git.defaultName"); gitInitEmail = t("git.defaultEmail"); gitInitModal = true; }}
-                title={t("git.notInitTitle")}>🟠 {t("git.notInit")}</button>
-            {:else if gitStatus === "unavailable"}
-              <button class="git-indicator git-off"
-                onclick={() => (gitHelpModal = true)}
-                title={t("git.unavailableTitle")}>🔴 {t("git.unavailable")}</button>
-            {/if}
           </div>
+
+          <!-- Row 4: versioning -->
+          {#if gitStatus !== "unknown"}
+            <div class="footer-row">
+              {#if gitStatus === "active"}
+                <span class="git-indicator git-active" title={t("git.activeTitle")}>🟢 {t("git.active")}</span>
+                <button class="git-log-link" onclick={cargarGitLog}>{t("git.viewSessions")} →</button>
+              {:else if gitStatus === "not-initialized"}
+                <button class="git-indicator git-warn"
+                  onclick={() => { gitInitNombre = t("git.defaultName"); gitInitEmail = t("git.defaultEmail"); gitInitModal = true; }}
+                  title={t("git.notInitTitle")}>🟠 {t("git.notInit")}</button>
+              {:else if gitStatus === "unavailable"}
+                <button class="git-indicator git-off"
+                  onclick={() => (gitHelpModal = true)}
+                  title={t("git.unavailableTitle")}>🔴 {t("git.unavailable")}</button>
+              {/if}
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -1473,10 +1470,10 @@
           <span class="project-label" title={projectPath}>
             {projectPath.split("/").pop() || projectPath}
           </span>
-          <span class="toolbar-spacer"></span>
           {#if activeChapter}
             <span class="chapter-label">{activeChapter}</span>
           {/if}
+          <span class="toolbar-spacer"></span>
           <button
             class="help-btn"
             onclick={() => (helpMode = !helpMode)}
@@ -1819,7 +1816,7 @@
 
   .tab {
     flex: 1;
-    padding: 0.75rem 0.5rem;
+    padding: 0.65rem 0.5rem;
     font-size: 0.875rem;
     font-weight: 500;
     color: #64748b;
@@ -1910,31 +1907,6 @@
     color: #60a5fa;
   }
 
-  .btn-load {
-    padding: 0.375rem 0.75rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.375rem;
-    background: #ffffff;
-    font-size: 0.8125rem;
-    color: #475569;
-    cursor: pointer;
-    transition: border-color 120ms, background 120ms;
-  }
-
-  .btn-load:hover {
-    border-color: #3b82f6;
-    background: #f8fafc;
-  }
-
-  :global(.dark) .btn-load {
-    background: #1e293b;
-    border-color: #334155;
-    color: #94a3b8;
-  }
-  :global(.dark) .btn-load:hover {
-    border-color: #60a5fa;
-  }
-
   /* ── Editor area ───────────────────────────────────────────── */
   .editor {
     display: flex;
@@ -2022,11 +1994,11 @@
   .editor-toolbar {
     display: flex;
     align-items: center;
-    padding: 0.4rem 1rem;
+    padding: 0 1rem;
     border-bottom: 1px solid #e2e8f0;
     background: #f8fafc;
     flex-shrink: 0;
-    min-height: 2.25rem;
+    min-height: 2.5rem;
   }
 
   :global(.dark) .editor-toolbar {

@@ -263,7 +263,6 @@
     setContent(html: string): void;
     increaseHeading(): void;
     decreaseHeading(): void;
-    insertPair(open: string, close: string): void;
     insertText(text: string): void;
     isFocused(): boolean;
   }>();
@@ -1051,16 +1050,14 @@
       return;
     }
 
-    // ── Smart pairs / editor inserts ───────────────────────────
-    if (e.ctrlKey && editorRef?.isFocused()) {
-      // Ctrl+( → ()
-      if (e.key === "(") { e.preventDefault(); editorRef.insertPair("(", ")"); return; }
-      // Ctrl+[ → []
-      if (e.key === "[") { e.preventDefault(); editorRef.insertPair("[", "]"); return; }
-      // Ctrl+{ → {}
-      if (e.key === "{") { e.preventDefault(); editorRef.insertPair("{", "}"); return; }
-      // Ctrl+D → em dash for dialogue
-      if (e.key === "d" || e.key === "D") { e.preventDefault(); editorRef.insertText("—"); return; }
+    // ── Editor inserts ─────────────────────────────────────────
+    // Ctrl+D → em dash + space for dialogue (only when editor focused)
+    if (e.ctrlKey && !e.shiftKey && (e.key === "d" || e.key === "D")) {
+      if (editorRef?.isFocused()) {
+        e.preventDefault();
+        editorRef.insertText("— ");
+        return;
+      }
     }
   }
 </script>

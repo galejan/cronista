@@ -201,6 +201,16 @@ const translations: Record<Lang, Record<string, string>> = {
     "dialog.projectNameDefault": "Mi Novela",
     "dialog.fontPrompt":
       "Tipo de letra:\n1. Monoespaciada (recomendado)\n2. Con serifa (Serif)\n3. Sin serifa (Sans-serif)\n\nElegí 1, 2 o 3:",
+    "dialog.fontTitle": "Elegí el tipo de letra",
+    "dialog.fontDesc":
+      "Esta será la fuente para todo el proyecto. Podés cambiarla después desde la configuración.",
+    "dialog.fontMono": "Monoespaciada",
+    "dialog.fontMonoHint": "Ideal para escritura. Cada letra ocupa lo mismo.",
+    "dialog.fontSerif": "Con serifa",
+    "dialog.fontSerifHint": "Clásica, elegante. Como un libro impreso.",
+    "dialog.fontSans": "Sin serifa",
+    "dialog.fontSansHint": "Moderna, limpia. Fácil de leer en pantalla.",
+    "dialog.fontConfirm": "Usar esta fuente",
     "dialog.projectFolderPath": "Ruta de la carpeta del proyecto:",
     "dialog.selectProjectFolder": "Seleccioná la carpeta del proyecto",
     "dialog.createProjectError": "Error al crear proyecto:",
@@ -393,6 +403,16 @@ const translations: Record<Lang, Record<string, string>> = {
     "dialog.projectNameDefault": "My Novel",
     "dialog.fontPrompt":
       "Font:\n1. Monospace (recommended)\n2. Serif\n3. Sans-serif\n\nChoose 1, 2, or 3:",
+    "dialog.fontTitle": "Choose a font",
+    "dialog.fontDesc":
+      "This will be the font for the entire project. You can change it later in settings.",
+    "dialog.fontMono": "Monospace",
+    "dialog.fontMonoHint": "Great for drafting. Every character takes equal space.",
+    "dialog.fontSerif": "Serif",
+    "dialog.fontSerifHint": "Classic, elegant. Like a printed book.",
+    "dialog.fontSans": "Sans-serif",
+    "dialog.fontSansHint": "Modern, clean. Easy on screen.",
+    "dialog.fontConfirm": "Use this font",
     "dialog.projectFolderPath": "Project folder path:",
     "dialog.selectProjectFolder": "Select the project folder",
     "dialog.createProjectError": "Error creating project:",

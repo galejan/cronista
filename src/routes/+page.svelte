@@ -163,6 +163,9 @@
   let activeChapter = $state("");
   let editorContent = $state("");
   let fontFamily = $state("monospace");
+  let fontPickerOpen = $state(false);
+  let fontPickerFont = $state("monospace");
+  let fontPickerResolve = $state<((v: string) => void) | null>(null);
   let saveStatus = $state<"" | "saved" | "unsaved" | "saving">("");
 
   // ── Auto-commit on close (Tauri window event) ─────────────────
@@ -378,11 +381,8 @@
       const name = prompt(t("dialog.projectName"), t("dialog.projectNameDefault"));
       if (!name) return;
 
-      // Font selection
-      const fontChoice = prompt(t("dialog.fontPrompt"), "1");
-      if (fontChoice === "2") fontFamily = "serif";
-      else if (fontChoice === "3") fontFamily = "sans-serif";
-      else fontFamily = "monospace";
+      // Font selection — show picker modal
+      fontFamily = await pickFont();
 
       const path = `${selected}/${name.trim()}`;
 
@@ -533,6 +533,15 @@
     } catch (e) {
       console.error("[cronista] Failed to load git log:", e);
     }
+  }
+
+  /** Show font picker modal and return selected font. */
+  function pickFont(): Promise<string> {
+    return new Promise((resolve) => {
+      fontPickerFont = fontFamily;
+      fontPickerOpen = true;
+      fontPickerResolve = resolve;
+    });
   }
 
   // ── Characters CRUD ─────────────────────────────────────────
@@ -1444,13 +1453,13 @@
               class:active-lang={$lang === "es"}
               onclick={() => setLang("es")}
               title="Español"
-            >🇪🇸</button>
+            >ES</button>
             <button
               class="lang-btn"
               class:active-lang={$lang === "en"}
               onclick={() => setLang("en")}
               title="English"
-            >🇬🇧</button>
+            >EN</button>
             <button
               class="theme-toggle"
               onclick={() => (theme = theme === "light" ? "dark" : "light")}
@@ -1636,6 +1645,69 @@
       <div class="modal-actions">
         <button class="btn-primary" onclick={() => (gitHelpModal = false)}>
           {t("git.helpClose")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if fontPickerOpen}
+  <!-- Font picker modal with live preview -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    role="dialog"
+    tabindex="-1"
+    aria-label="Elegir tipo de letra"
+    onkeydown={(e) => e.key === "Escape" && (fontPickerOpen = false)}
+  >
+    <div class="modal-panel font-picker-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+      <h2>{t("dialog.fontTitle")}</h2>
+      <p class="modal-desc">{t("dialog.fontDesc")}</p>
+
+      <div class="font-picker-layout">
+        <div class="font-picker-options">
+          <label class="font-option" class:selected={fontPickerFont === "monospace"}>
+            <input type="radio" bind:group={fontPickerFont} value="monospace" />
+            <span class="font-option-name">{t("dialog.fontMono")}</span>
+            <span class="font-option-hint">{t("dialog.fontMonoHint")}</span>
+          </label>
+          <label class="font-option" class:selected={fontPickerFont === "serif"}>
+            <input type="radio" bind:group={fontPickerFont} value="serif" />
+            <span class="font-option-name">{t("dialog.fontSerif")}</span>
+            <span class="font-option-hint">{t("dialog.fontSerifHint")}</span>
+          </label>
+          <label class="font-option" class:selected={fontPickerFont === "sans-serif"}>
+            <input type="radio" bind:group={fontPickerFont} value="sans-serif" />
+            <span class="font-option-name">{t("dialog.fontSans")}</span>
+            <span class="font-option-hint">{t("dialog.fontSansHint")}</span>
+          </label>
+        </div>
+
+        <div class="font-preview" style:font-family={fontPickerFont === "monospace"
+            ? "'Courier New', 'Fira Code', monospace"
+            : fontPickerFont === "serif"
+              ? "Georgia, 'Times New Roman', serif"
+              : "'Inter', 'Segoe UI', sans-serif"}>
+          <h3 class="font-preview-h1">El comienzo</h3>
+          <p class="font-preview-text">
+            La niebla se alzaba perezosa sobre los tejados de París cuando
+            el reloj de Notre-Dame dio las siete. El inspector dejó la taza
+            de café sobre el escritorio y se asomó a la ventana.
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick={() => { fontPickerOpen = false; fontPickerResolve?.("monospace"); }}>
+          {t("common.cancel")}
+        </button>
+        <button class="btn-primary" onclick={() => {
+          const chosen = fontPickerFont;
+          fontPickerOpen = false;
+          fontPickerResolve?.(chosen);
+        }}>
+          {t("dialog.fontConfirm")}
         </button>
       </div>
     </div>
@@ -2561,19 +2633,22 @@
 
   /* ── Language switcher buttons ─────────────────────────────── */
   .lang-btn {
-    width: 1.5rem;
+    min-width: 1.75rem;
     height: 1.5rem;
-    padding: 0;
+    padding: 0 0.3rem;
     border: 1px solid transparent;
     border-radius: 0.25rem;
     background: transparent;
-    font-size: 0.8125rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 120ms, border-color 120ms;
     opacity: 0.6;
+    color: #64748b;
   }
 
   .lang-btn:hover {
@@ -2586,6 +2661,11 @@
     opacity: 1;
     border-color: #3b82f6;
     background: #eff6ff;
+    color: #1e40af;
+  }
+
+  :global(.dark) .lang-btn {
+    color: #94a3b8;
   }
 
   :global(.dark) .lang-btn:hover {
@@ -2596,6 +2676,7 @@
   :global(.dark) .lang-btn.active-lang {
     border-color: #60a5fa;
     background: #1e3a5f;
+    color: #93c5fd;
   }
 
   /* ── Help overlay ─────────────────────────────────────────── */
@@ -2965,6 +3046,97 @@
     justify-content: flex-end;
     gap: 0.5rem;
     margin-top: 1.25rem;
+  }
+
+  /* ── Font picker ─────────────────────────────────────────────── */
+  .font-picker-panel {
+    max-width: 580px;
+  }
+
+  .font-picker-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .font-picker-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .font-option {
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: border-color 120ms, background 120ms;
+  }
+
+  .font-option.selected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+  }
+
+  :global(.dark) .font-option.selected {
+    border-color: #60a5fa;
+    background: #1e3a5f;
+  }
+
+  .font-option input { display: none; }
+
+  .font-option-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  :global(.dark) .font-option-name {
+    color: #f1f5f9;
+  }
+
+  .font-option-hint {
+    font-size: 0.6875rem;
+    color: #94a3b8;
+    margin-top: 0.15rem;
+  }
+
+  .font-preview {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background: #fafafa;
+    overflow: hidden;
+  }
+
+  :global(.dark) .font-preview {
+    background: #0f172a;
+    border-color: #334155;
+  }
+
+  .font-preview-h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    color: #1e293b;
+  }
+
+  :global(.dark) .font-preview-h1 {
+    color: #f1f5f9;
+  }
+
+  .font-preview-text {
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: #475569;
+    margin: 0;
+  }
+
+  :global(.dark) .font-preview-text {
+    color: #94a3b8;
   }
 
   /* ── Git log sessions panel ──────────────────────────────────── */

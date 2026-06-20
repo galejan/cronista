@@ -263,6 +263,7 @@
     setContent(html: string): void;
     increaseHeading(): void;
     decreaseHeading(): void;
+    insertPair(open: string, close: string): void;
     insertText(text: string): void;
     isFocused(): boolean;
   }>();
@@ -1051,11 +1052,11 @@
     }
 
     // ── Editor inserts ─────────────────────────────────────────
-    // Ctrl+D → em dash + space for dialogue (only when editor focused)
+    // Ctrl+D → dialogue dash pair: —|— (cursor between dashes)
     if (e.ctrlKey && !e.shiftKey && (e.key === "d" || e.key === "D")) {
       if (editorRef?.isFocused()) {
         e.preventDefault();
-        editorRef.insertText("— ");
+        editorRef.insertPair("—", "—");
         return;
       }
     }

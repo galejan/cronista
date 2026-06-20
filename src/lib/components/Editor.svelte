@@ -33,6 +33,18 @@
     editor?.chain().focus().insertContent(text).run();
   }
 
+  /** Insert paired characters with cursor between them. */
+  export function insertPair(open: string, close: string): void {
+    if (!editor) return;
+    const { from } = editor.state.selection;
+    editor
+      .chain()
+      .focus()
+      .insertContent(open + close)
+      .setTextSelection(from + open.length)
+      .run();
+  }
+
   /** Whether the TipTap editor currently has focus. */
   export function isFocused(): boolean {
     return editor?.isFocused ?? false;

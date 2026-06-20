@@ -190,7 +190,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.newChapter": "Nuevo capítulo",
     "help.shortcuts.openProject": "Abrir otro proyecto (cierra el actual)",
     "help.shortcuts.newProject": "Nuevo proyecto (cierra el actual)",
-    "help.shortcuts.applyHeading": "Aplicar Título 1 / 2 / 3",
+    "help.shortcuts.applyHeading": "Subir / bajar nivel de título (H1 ↔ H2 ↔ normal)",
     "help.shortcuts.fullscreen": "Pantalla completa",
     "help.shortcuts.toggleHelp": "Mostrar / ocultar esta ayuda",
 
@@ -199,6 +199,8 @@ const translations: Record<Lang, Record<string, string>> = {
       "Seleccioná la carpeta donde crear el proyecto",
     "dialog.projectName": "Nombre del proyecto (ej: Mi Novela):",
     "dialog.projectNameDefault": "Mi Novela",
+    "dialog.fontPrompt":
+      "Tipo de letra:\n1. Monoespaciada (recomendado)\n2. Con serifa (Serif)\n3. Sin serifa (Sans-serif)\n\nElegí 1, 2 o 3:",
     "dialog.projectFolderPath": "Ruta de la carpeta del proyecto:",
     "dialog.selectProjectFolder": "Seleccioná la carpeta del proyecto",
     "dialog.createProjectError": "Error al crear proyecto:",
@@ -380,7 +382,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.newChapter": "New chapter",
     "help.shortcuts.openProject": "Open another project (closes current)",
     "help.shortcuts.newProject": "New project (closes current)",
-    "help.shortcuts.applyHeading": "Apply Heading 1 / 2 / 3",
+    "help.shortcuts.applyHeading": "Increase / decrease heading level (H1 ↔ H2 ↔ normal)",
     "help.shortcuts.fullscreen": "Full screen",
     "help.shortcuts.toggleHelp": "Show / hide this help",
 
@@ -389,6 +391,8 @@ const translations: Record<Lang, Record<string, string>> = {
       "Select the folder where to create the project",
     "dialog.projectName": "Project name (e.g. My Novel):",
     "dialog.projectNameDefault": "My Novel",
+    "dialog.fontPrompt":
+      "Font:\n1. Monospace (recommended)\n2. Serif\n3. Sans-serif\n\nChoose 1, 2, or 3:",
     "dialog.projectFolderPath": "Project folder path:",
     "dialog.selectProjectFolder": "Select the project folder",
     "dialog.createProjectError": "Error creating project:",

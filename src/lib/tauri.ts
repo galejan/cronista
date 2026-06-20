@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 export async function crearProyecto(
   path: string,
   nombre: string,
+  fontFamily?: string,
 ): Promise<string> {
-  return invoke("crear_proyecto", { path, nombre });
+  return invoke("crear_proyecto", { path, nombre, fontFamily });
 }
 
 /** Set the project folder icon (best-effort, gvfs). Call after crearProyecto. */

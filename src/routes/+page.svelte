@@ -162,6 +162,7 @@
   let pendingDelete = $state<string | null>(null);
   let activeChapter = $state("");
   let editorContent = $state("");
+  let fontFamily = $state("monospace");
   let saveStatus = $state<"" | "saved" | "unsaved" | "saving">("");
 
   // ── Auto-commit on close (Tauri window event) ─────────────────
@@ -229,10 +230,11 @@
     };
   });
 
-  /** Editor component reference — exposes setContent(html) + toggleHeading(level). */
+  /** Editor component reference — exposes setContent(html) + heading control. */
   let editorRef = $state<{
     setContent(html: string): void;
-    toggleHeading(level: 1 | 2 | 3): void;
+    increaseHeading(): void;
+    decreaseHeading(): void;
   }>();
 
   // ── Sidebar tab state ───────────────────────────────────────
@@ -376,11 +378,17 @@
       const name = prompt(t("dialog.projectName"), t("dialog.projectNameDefault"));
       if (!name) return;
 
+      // Font selection
+      const fontChoice = prompt(t("dialog.fontPrompt"), "1");
+      if (fontChoice === "2") fontFamily = "serif";
+      else if (fontChoice === "3") fontFamily = "sans-serif";
+      else fontFamily = "monospace";
+
       const path = `${selected}/${name.trim()}`;
 
       console.log("[cronista] Creating project:", { path, name });
       try {
-        const msg = await crearProyecto(path, name.trim());
+        const msg = await crearProyecto(path, name.trim(), fontFamily);
         console.log("[cronista] Project created:", msg);
         projectPath = path;
         setActiveProject(path);
@@ -439,6 +447,7 @@
       const meta = JSON.parse(raw);
       projectPath = path;
       setActiveProject(path);
+      fontFamily = meta.font_family || "monospace";
       await actualizarGitStatus(path);
       chapters = meta.chapters_order ?? [];
       console.log("[cronista] Project opened:", meta.project_name, chapters);
@@ -847,6 +856,7 @@
         const meta = JSON.parse(raw);
         projectPath = lastPath;
         setActiveProject(lastPath);
+        fontFamily = meta.font_family || "monospace";
         await actualizarGitStatus(lastPath);
         chapters = meta.chapters_order ?? [];
         console.log("[cronista] Project reopened:", meta.project_name, chapters);
@@ -955,11 +965,18 @@
       return;
     }
 
-    // Ctrl+Alt+1/2/3 — heading toggle (only when editor is mounted)
-    if (e.ctrlKey && e.altKey) {
-      if (e.key === "1") { e.preventDefault(); editorRef?.toggleHeading(1); return; }
-      if (e.key === "2") { e.preventDefault(); editorRef?.toggleHeading(2); return; }
-      if (e.key === "3") { e.preventDefault(); editorRef?.toggleHeading(3); return; }
+    // Ctrl+Up — increase heading level (paragraph → H2 → H1)
+    if (e.ctrlKey && !e.shiftKey && e.key === "ArrowUp") {
+      e.preventDefault();
+      editorRef?.increaseHeading();
+      return;
+    }
+
+    // Ctrl+Down — decrease heading level (H1 → H2 → paragraph)
+    if (e.ctrlKey && !e.shiftKey && e.key === "ArrowDown") {
+      e.preventDefault();
+      editorRef?.decreaseHeading();
+      return;
     }
   }
 </script>
@@ -1462,6 +1479,7 @@
           <Editor
             bind:this={editorRef}
             content={editorContent}
+            {fontFamily}
             onUpdate={handleEditorUpdate}
           />
         </div>
@@ -1525,7 +1543,7 @@
           <tr><td><kbd>Ctrl+N</kbd></td><td>{t("help.shortcuts.newChapter")}</td></tr>
           <tr><td><kbd>Ctrl+O</kbd></td><td>{t("help.shortcuts.openProject")}</td></tr>
           <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>{t("help.shortcuts.newProject")}</td></tr>
-          <tr><td><kbd>Ctrl+Alt+1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td><td>{t("help.shortcuts.applyHeading")}</td></tr>
+          <tr><td><kbd>Ctrl+↑</kbd> / <kbd>Ctrl+↓</kbd></td><td>{t("help.shortcuts.applyHeading")}</td></tr>
           <tr><td><kbd>F11</kbd></td><td>{t("help.shortcuts.fullscreen")}</td></tr>
           <tr><td><kbd>F1</kbd> o <kbd>?</kbd></td><td>{t("help.shortcuts.toggleHelp")}</td></tr>
           </tbody>

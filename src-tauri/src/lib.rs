@@ -26,6 +26,12 @@ struct Metadata {
     last_modified: String,
     chapters_order: Vec<String>,
     characters_index: Vec<CharacterIndex>,
+    #[serde(default = "default_font_family")]
+    font_family: String,
+}
+
+fn default_font_family() -> String {
+    "monospace".to_string()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -160,7 +166,7 @@ fn find_git() -> Result<String, String> {
 /// repository (silently — disk structure is created regardless of Git
 /// availability).
 #[tauri::command]
-fn crear_proyecto(path: String, nombre: String) -> Result<String, String> {
+fn crear_proyecto(path: String, nombre: String, font_family: Option<String>) -> Result<String, String> {
     // Normalise trailing separators
     let path = path.trim_end_matches('/').trim_end_matches('\\').to_string();
     let base = Path::new(&path);
@@ -182,6 +188,7 @@ fn crear_proyecto(path: String, nombre: String) -> Result<String, String> {
         last_modified: Local::now().to_rfc3339(),
         chapters_order: vec![],
         characters_index: vec![],
+        font_family: font_family.unwrap_or_else(default_font_family),
     };
     let metadata_json = serde_json::to_string_pretty(&metadata)
         .map_err(|e| format!("Error al serializar metadata: {}", e))?;
@@ -1547,7 +1554,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let result = crear_proyecto(path.clone(), "Test Project".to_string());
+        let result = crear_proyecto(path.clone(), "Test Project".to_string(), None);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         for sub in &[".config", "capitulos", "personajes", "notas"] {
@@ -1564,7 +1571,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Mi Novela".to_string());
+        let _ = crear_proyecto(path.clone(), "Mi Novela".to_string(), None);
 
         let metadata_path = dir.path().join(".config").join("metadata.json");
         assert!(metadata_path.exists(), "metadata.json does not exist");
@@ -1589,7 +1596,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let timeline_path = dir.path().join(".config").join("timeline.json");
         assert!(timeline_path.exists(), "timeline.json does not exist");
@@ -1645,7 +1652,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "My Project".to_string());
+        let _ = crear_proyecto(path.clone(), "My Project".to_string(), None);
 
         let result = cargar_indice(path.clone());
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -1719,7 +1726,7 @@ mod tests {
         // Append trailing separator — path.normalize() or trim_end_matches should handle it
         let path_with_slash = format!("{}/", dir.path().to_str().unwrap());
 
-        let result = crear_proyecto(path_with_slash, "Trailing Test".to_string());
+        let result = crear_proyecto(path_with_slash, "Trailing Test".to_string(), None);
         assert!(result.is_ok(), "crear_proyecto with trailing separator failed: {:?}", result);
 
         // All directories must exist
@@ -1737,7 +1744,7 @@ mod tests {
     #[test]
     fn test_crear_proyecto_permission_denied() {
         // /root/ is typically not writable by non-root users on Linux
-        let result = crear_proyecto("/root/cronista-blocked".to_string(), "Test".to_string());
+        let result = crear_proyecto("/root/cronista-blocked".to_string(), "Test".to_string(), None);
         // On CI running as root, this could succeed; we just assert it doesn't panic
         match result {
             Ok(_) => {
@@ -1823,7 +1830,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let result = crear_proyecto(path.clone(), "Test Project".to_string());
+        let result = crear_proyecto(path.clone(), "Test Project".to_string(), None);
         assert!(result.is_ok(), "crear_proyecto failed: {:?}", result);
 
         // crear_proyecto auto-calls inicializar_git after creating directories
@@ -1841,7 +1848,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let result = crear_proyecto(path.clone(), "Sin Git".to_string());
+        let result = crear_proyecto(path.clone(), "Sin Git".to_string(), None);
         assert!(result.is_ok(), "crear_proyecto should succeed: {:?}", result);
 
         // Disk structure must exist regardless of git availability
@@ -1983,7 +1990,7 @@ mod tests {
         let path = dir.path().to_str().unwrap().to_string();
 
         // --- Step 1: Create project ---
-        let result = crear_proyecto(path.clone(), "Full Flow Test".to_string());
+        let result = crear_proyecto(path.clone(), "Full Flow Test".to_string(), None);
         assert!(result.is_ok(), "Step 1 (crear_proyecto) failed: {:?}", result);
 
         // Verify directory structure
@@ -2083,7 +2090,7 @@ mod tests {
         let path = dir.path().to_str().unwrap().to_string();
 
         // Create a project so metadata.json exists
-        let _ = crear_proyecto(path.clone(), "Test Project".to_string());
+        let _ = crear_proyecto(path.clone(), "Test Project".to_string(), None);
 
         let contenido = "# Capítulo 1\n\n";
         let result = crear_capitulo(
@@ -2121,7 +2128,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test Project".to_string());
+        let _ = crear_proyecto(path.clone(), "Test Project".to_string(), None);
 
         // Create a chapter file manually so it already exists
         fs::write(
@@ -2159,7 +2166,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test Project".to_string());
+        let _ = crear_proyecto(path.clone(), "Test Project".to_string(), None);
 
         let contenido = concat!(
             "Ñoño y pingüino — ¡árbol!\n",
@@ -2235,7 +2242,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let personaje_json = r#"{
             "id": "maria-garcia",
@@ -2265,7 +2272,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let personaje_json = r#"{"id": "juan", "name": "Juan"}"#;
 
@@ -2284,7 +2291,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let personaje_json = r#"{
             "id": "ana",
@@ -2309,7 +2316,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let result = cargar_personaje(path, "fantasma".to_string());
         assert!(result.is_err(), "Expected Err for missing character");
@@ -2328,7 +2335,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let original = r#"{
             "id": "pedro",
@@ -2372,7 +2379,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let result = actualizar_personaje(
             path,
@@ -2389,7 +2396,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let _ = crear_personaje(
             path.clone(),
@@ -2417,7 +2424,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         // Create a character
         let _ = crear_personaje(
@@ -2465,7 +2472,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let result = crear_nota(
             path.clone(),
@@ -2495,7 +2502,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let _ = crear_nota(
             path.clone(),
@@ -2532,7 +2539,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let contenido = "# Título\n\nPárrafo con **negrita** y más texto.";
         let _ = crear_nota(
@@ -2554,7 +2561,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let _ = crear_nota(
             path.clone(),
@@ -2586,7 +2593,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let result = cargar_timeline(path);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
@@ -2600,7 +2607,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let evento_json = r#"{
             "id": "evt-test",
@@ -2627,7 +2634,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         // Event without an explicit id
         let evento_json = r#"{
@@ -2658,7 +2665,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         // Add three events in known order
         let _ = agregar_evento_timeline(
@@ -2695,7 +2702,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let _ = agregar_evento_timeline(
             path.clone(),
@@ -2718,7 +2725,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         // After crear_proyecto, the notas/index.json doesn't exist yet,
         // so listar_notas should return "[]"
@@ -2736,7 +2743,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         // Create a chapter
         let _ = crear_capitulo(
@@ -2777,7 +2784,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         let result = eliminar_capitulo(path.clone(), "9999_fantasma.md".to_string());
         assert!(result.is_err(), "Expected Err for nonexistent chapter");
@@ -2794,7 +2801,7 @@ mod tests {
         let dir = TempDir::new().expect("failed to create temp dir");
         let path = dir.path().to_str().unwrap().to_string();
 
-        let _ = crear_proyecto(path.clone(), "Test".to_string());
+        let _ = crear_proyecto(path.clone(), "Test".to_string(), None);
 
         // Create a chapter
         let _ = crear_capitulo(

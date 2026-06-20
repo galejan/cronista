@@ -29,6 +29,13 @@ export async function crearCheckpoint(
   return invoke("crear_checkpoint", { proyectoPath });
 }
 
+/** Tell the Rust backend which project is open (for close-time checkpoint). */
+export async function setActiveProject(
+  path: string | null,
+): Promise<void> {
+  return invoke("set_active_project", { path });
+}
+
 export async function cargarIndice(proyectoPath: string): Promise<string> {
   return invoke("cargar_indice", { proyectoPath });
 }

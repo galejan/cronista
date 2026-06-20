@@ -7,10 +7,18 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
+use std::sync::Mutex;
+use tauri::Manager;
 
 // ---------------------------------------------------------------------------
 // Data structures
 // ---------------------------------------------------------------------------
+
+/// Tauri managed state: tracks the active project for close-time checkpoint.
+struct ProjectState {
+    active_project: Mutex<Option<String>>,
+    closing: Mutex<bool>,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Metadata {
@@ -242,6 +250,21 @@ fn inicializar_git(path: String) -> Result<String, String> {
 #[tauri::command]
 fn detectar_git() -> Result<bool, String> {
     Ok(find_git().is_ok())
+}
+
+/// Tell the Rust backend which project is currently open in the frontend.
+///
+/// Called when a project is opened (path = Some) or closed (path = None).
+/// The backend uses this to run a git checkpoint when the window is closed,
+/// avoiding the JS→Rust IPC deadlock during `onCloseRequested`.
+#[tauri::command]
+fn set_active_project(
+    state: tauri::State<ProjectState>,
+    path: Option<String>,
+) -> Result<(), String> {
+    let mut active = state.active_project.lock().map_err(|e| e.to_string())?;
+    *active = path;
+    Ok(())
 }
 
 /// Save chapter content to disk (Nivel 1 — no git commit).
@@ -1101,16 +1124,85 @@ fn count_words_in_chapters(project_path: &Path) -> usize {
 // Application entry point
 // ---------------------------------------------------------------------------
 
+/// Internal checkpoint — same logic as the Tauri command but callable
+/// from event handlers without going through the IPC layer.
+fn do_checkpoint(project_path: &str) -> Result<String, String> {
+    let project_path = Path::new(project_path);
+    let git_path = find_git()?;
+
+    let add_output = Command::new(&git_path)
+        .arg("add")
+        .arg(".")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git add: {}", e))?;
+
+    if !add_output.status.success() {
+        let stderr = String::from_utf8_lossy(&add_output.stderr);
+        return Err(format!("Error en git add: {}", stderr.trim()));
+    }
+
+    let word_count = count_words_in_chapters(project_path);
+    let date = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let commit_msg = format!(
+        "Progreso automático: {} - {} palabras",
+        date, word_count
+    );
+
+    let commit_output = Command::new(&git_path)
+        .arg("commit")
+        .arg("-m")
+        .arg(&commit_msg)
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git commit: {}", e))?;
+
+    if commit_output.status.success() {
+        let hash_output = Command::new(&git_path)
+            .arg("rev-parse")
+            .arg("HEAD")
+            .current_dir(project_path)
+            .output()
+            .map_err(|e| format!("Error al obtener el hash del commit: {}", e))?;
+
+        let hash = String::from_utf8_lossy(&hash_output.stdout)
+            .trim()
+            .to_string();
+        Ok(hash)
+    } else {
+        let stderr = String::from_utf8_lossy(&commit_output.stderr);
+        let stdout = String::from_utf8_lossy(&commit_output.stdout);
+        let combined = format!("{}{}", stderr, stdout);
+        if combined.contains("nothing to commit")
+            || combined.contains("nothing added to commit")
+            || combined.contains("nada para confirmar")
+            || combined.contains("nada que confirmar")
+        {
+            Ok("Sin cambios para guardar.".to_string())
+        } else {
+            Err(format!(
+                "Error en git commit: {}",
+                combined.trim().lines().last().unwrap_or("")
+            ))
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(ProjectState {
+            active_project: Mutex::new(None),
+            closing: Mutex::new(false),
+        })
         .invoke_handler(tauri::generate_handler![
             crear_proyecto,
             inicializar_git,
             detectar_git,
+            set_active_project,
             guardar_capitulo,
             crear_checkpoint,
             cargar_indice,
@@ -1131,6 +1223,47 @@ pub fn run() {
             reordenar_timeline,
             eliminar_evento_timeline,
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<ProjectState>();
+
+                // Guard against re-entry
+                {
+                    let mut closing = state.closing.lock().unwrap();
+                    if *closing {
+                        return; // Already in close flow, let it through
+                    }
+                    *closing = true;
+                }
+
+                let project_path = {
+                    let active = state.active_project.lock().unwrap();
+                    active.clone()
+                };
+
+                if let Some(ref path) = project_path {
+                    // Prevent immediate close so we can checkpoint
+                    api.prevent_close();
+
+                    let path = path.clone();
+                    let window_clone = window.clone();
+
+                    // Spawn async task — checkpoint + close happens off the event loop
+                    tauri::async_runtime::spawn(async move {
+                        // Brief pause lets any in-flight autosave IPC complete
+                        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+
+                        // Checkpoint (git commit). Ignore errors — we close anyway.
+                        let _ = do_checkpoint(&path);
+
+                        // Force-close. This re-enters on_window_event but
+                        // the `closing` guard lets it through immediately.
+                        let _ = window_clone.destroy();
+                    });
+                }
+                // If no active project, don't prevent close — window closes normally
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -25,6 +25,7 @@
     listarNotas,
     listarPersonajes,
     reordenarTimeline,
+    setActiveProject,
   } from "$lib/tauri";
   import { documentDir } from "@tauri-apps/api/path";
   import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -152,16 +153,11 @@
   let saveStatus = $state<"" | "saved" | "unsaved" | "saving">("");
 
   // ── Auto-commit on close (Tauri window event) ─────────────────
-  // Uses untrack() so state reads inside the callback do NOT
-  // create reactive dependencies. The handler is registered once
-  // and reads the latest state at close time.
-  //
-  // IMPORTANT: call destroy() instead of close() to force-close
-  // without re-entering onCloseRequested. Tauri v2's close() from
-  // within the handler can deadlock because the Rust side is still
-  // waiting for the JS promise to resolve.
+  // The Rust backend (on_window_event) handles the git checkpoint.
+  // JS only shows the closing overlay and calls destroy().
+  // No IPC calls from within the handler — avoids deadlock.
   let closing = $state(false);
-  let closeStep = $state("");    // user-visible progress message
+  let closeStep = $state("");
 
   $effect(() => {
     let unlisten: (() => void) | undefined;
@@ -173,57 +169,33 @@
       w.onCloseRequested(async (event) => {
         const path = untrack(() => projectPath);
         const gitOk = untrack(() => gitEnabled);
-        const chapter = untrack(() => activeChapter);
-        const content = untrack(() => editorContent);
 
         console.log("[cronista:close] ── Close requested ──");
         console.log("[cronista:close]   projectPath:", path || "(none)");
         console.log("[cronista:close]   gitEnabled:", gitOk);
-        console.log("[cronista:close]   closing:", untrack(() => closing));
-        console.log("[cronista:close]   activeChapter:", chapter || "(none)");
-        console.log("[cronista:close]   editorContent length:", content?.length ?? 0);
 
-        if (!path) {
-          console.log("[cronista:close] → no project open, letting window close normally");
-          return;
-        }
-
-        if (!gitOk) {
-          console.log("[cronista:close] → git disabled, letting window close normally");
-          return;
+        if (!path || !gitOk) {
+          console.log("[cronista:close] → no project or no git, letting close through");
+          return; // No preventDefault — window closes normally
         }
 
         if (untrack(() => closing)) {
           console.log("[cronista:close] → already closing, letting through");
           return;
         }
+
         closing = true;
-        closeStep = "Guardando capítulo...";
-
-        console.log("[cronista:close] → preventing default, will save + checkpoint");
-        event.preventDefault();
-
-        try {
-          if (chapter && content) {
-            console.log("[cronista:close] → saving chapter:", chapter);
-            const saveResult = await guardarCapitulo(path, chapter, content);
-            console.log("[cronista:close]   save result:", saveResult);
-          }
-          closeStep = "Creando checkpoint de Git...";
-          console.log("[cronista:close] → creating checkpoint...");
-          const checkpointResult = await crearCheckpoint(path);
-          console.log("[cronista:close]   checkpoint result:", checkpointResult);
-        } catch (err) {
-          console.error("[cronista:close]   save/checkpoint FAILED:", err);
-          closeStep = "Error al guardar. Cerrando de todas formas...";
-        }
-
         closeStep = "Cerrando aplicación...";
+        console.log("[cronista:close] → showing overlay, Rust handles checkpoint");
+
+        event.preventDefault(); // Keep window alive while overlay shows
+
+        // Brief pause so user sees the overlay
+        await new Promise(r => setTimeout(r, 500));
+
+        // Force-close. Rust's on_window_event already did the checkpoint
+        // (or is about to) on its own thread.
         console.log("[cronista:close] → destroying window");
-
-        // Brief pause so the user sees the final message
-        await new Promise(r => setTimeout(r, 400));
-
         try {
           getCurrentWindow().destroy();
         } catch (e) {
@@ -399,6 +371,7 @@
         const msg = await crearProyecto(path, name.trim());
         console.log("[cronista] Project created:", msg);
         projectPath = path;
+        setActiveProject(path);
         gitEnabled = await detectarGit();
         await refreshChapters();
       } catch (e) {
@@ -447,6 +420,7 @@
       const raw = await cargarIndice(path);
       const meta = JSON.parse(raw);
       projectPath = path;
+      setActiveProject(path);
       gitEnabled = await detectarGit();
       chapters = meta.chapters_order ?? [];
       console.log("[cronista] Project opened:", meta.project_name, chapters);
@@ -788,6 +762,7 @@
       .then(async (raw) => {
         const meta = JSON.parse(raw);
         projectPath = lastPath;
+        setActiveProject(lastPath);
         gitEnabled = await detectarGit();
         chapters = meta.chapters_order ?? [];
         console.log("[cronista] Project reopened:", meta.project_name, chapters);
@@ -865,6 +840,7 @@
     if (e.ctrlKey && e.shiftKey && e.key === "N") {
       e.preventDefault();
       projectPath = "";
+      setActiveProject(null);
       chapters = [];
       activeChapter = "";
       editorContent = "";

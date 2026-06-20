@@ -28,6 +28,23 @@
     editor?.chain().focus().toggleHeading({ level: 2 }).run();
   }
 
+  /** Insert paired characters and place cursor between them. */
+  export function insertPair(open: string, close: string): void {
+    if (!editor) return;
+    const { from } = editor.state.selection;
+    editor
+      .chain()
+      .focus()
+      .insertContent(open + close)
+      .setTextSelection(from + open.length)
+      .run();
+  }
+
+  /** Insert text at cursor (for em dash, etc.). */
+  export function insertText(text: string): void {
+    editor?.chain().focus().insertContent(text).run();
+  }
+
   onMount(() => {
     const ed = new Editor({
       element: editorContainer,

@@ -260,6 +260,8 @@
     setContent(html: string): void;
     increaseHeading(): void;
     decreaseHeading(): void;
+    insertPair(open: string, close: string): void;
+    insertText(text: string): void;
   }>();
 
   // ── Sidebar tab state ───────────────────────────────────────
@@ -1043,6 +1045,39 @@
       e.preventDefault();
       editorRef?.decreaseHeading();
       return;
+    }
+
+    // ── Smart pairs (only when editing in the main editor) ─────
+
+    // Check if focus is inside the editor area (not a modal input)
+    const active = document.activeElement;
+    const inEditor = active && active.closest(".editor-body");
+
+    if (inEditor && e.ctrlKey) {
+      // Ctrl+( → ()
+      if (e.key === "(") {
+        e.preventDefault();
+        editorRef?.insertPair("(", ")");
+        return;
+      }
+      // Ctrl+[ → []
+      if (e.key === "[") {
+        e.preventDefault();
+        editorRef?.insertPair("[", "]");
+        return;
+      }
+      // Ctrl+{ → {}
+      if (e.key === "{") {
+        e.preventDefault();
+        editorRef?.insertPair("{", "}");
+        return;
+      }
+      // Ctrl+- → em dash for dialogue
+      if (e.key === "-") {
+        e.preventDefault();
+        editorRef?.insertText("—");
+        return;
+      }
     }
   }
 </script>

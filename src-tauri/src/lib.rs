@@ -198,6 +198,40 @@ fn crear_proyecto(path: String, nombre: String) -> Result<String, String> {
     Ok(format!("Proyecto '{}' creado en {}", nombre, path))
 }
 
+/// Copy the app icon into the project and set it as folder icon via gvfs.
+///
+/// Best-effort — never fails. Works on GNOME, Nemo, and other file
+/// managers that respect GVFS metadata. Call after project creation.
+#[tauri::command]
+fn marcar_proyecto_cronista(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let base = Path::new(&path);
+
+    // Copy icon from bundled resources to project root
+    let icon_dest = base.join(".cronista-icon.png");
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let icon_src = resource_dir.join("icons/32x32.png");
+        if icon_src.exists() {
+            std::fs::copy(&icon_src, &icon_dest)
+                .map_err(|e| format!("Error al copiar icono: {}", e))?;
+        }
+    }
+
+    // Try to set folder icon via gvfs (GNOME, Cinnamon, Nemo, etc.)
+    if let Ok(icon_abs) = icon_dest.canonicalize() {
+        let icon_uri = format!("file://{}", icon_abs.display());
+        let _ = std::process::Command::new("gio")
+            .arg("set")
+            .arg("-t")
+            .arg("string")
+            .arg(base)
+            .arg("metadata::custom-icon")
+            .arg(&icon_uri)
+            .output();
+    }
+
+    Ok(())
+}
+
 /// Initialise a Git repository in the given project path.
 ///
 /// Returns success if `.git` already exists (reinit is safe) or if
@@ -1386,6 +1420,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             crear_proyecto,
+            marcar_proyecto_cronista,
             inicializar_git,
             inicializar_git_con_autor,
             verificar_git_inicializado,

@@ -25,6 +25,7 @@
     inicializarGitConAutor,
     listarNotas,
     listarPersonajes,
+    marcarProyectoCronista,
     obtenerGitLog,
     reordenarTimeline,
     setActiveProject,
@@ -383,6 +384,7 @@
         console.log("[cronista] Project created:", msg);
         projectPath = path;
         setActiveProject(path);
+        marcarProyectoCronista(path); // fire-and-forget: set folder icon
         await actualizarGitStatus(path);
         await refreshChapters();
       } catch (e) {

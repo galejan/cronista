@@ -7,6 +7,13 @@ export async function crearProyecto(
   return invoke("crear_proyecto", { path, nombre });
 }
 
+/** Set the project folder icon (best-effort, gvfs). Call after crearProyecto. */
+export async function marcarProyectoCronista(
+  path: string,
+): Promise<void> {
+  return invoke("marcar_proyecto_cronista", { path });
+}
+
 export async function inicializarGit(path: string): Promise<string> {
   return invoke("inicializar_git", { path });
 }

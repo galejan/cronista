@@ -51,11 +51,13 @@
           email = "shakespeare@literature.com";
         }
       }
-      // Also load existing remote config
-      const remote = await cargarConfigRemoto();
-      if (remote && remote.url) {
-        remoteUrl = remote.url;
-        wantsRemote = true;
+      // Only load existing remote config for reconfiguration (not new projects)
+      if (!projectName) {
+        const remote = await cargarConfigRemoto();
+        if (remote && remote.url) {
+          remoteUrl = remote.url;
+          wantsRemote = true;
+        }
       }
     } catch (e) {
       console.error("[GitIdentityDialog] Failed to load identity:", e);

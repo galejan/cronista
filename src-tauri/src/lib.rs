@@ -1909,7 +1909,12 @@ fn configurar_remoto(_app: tauri::AppHandle, path: String, url: String) -> Resul
         Ok("Repositorio remoto configurado y sincronizado correctamente.".to_string())
     } else {
         let stderr = String::from_utf8_lossy(&push_output.stderr);
-        Err(format!("Error al sincronizar con remoto: {}", stderr.trim()))
+        let stderr_str = stderr.trim().to_lowercase();
+        if stderr_str.contains("not found") || stderr_str.contains("repository not found") {
+            Err(format!("REPO_NOT_FOUND:{}", stderr.trim()))
+        } else {
+            Err(format!("Error al sincronizar con remoto: {}", stderr.trim()))
+        }
     }
 }
 

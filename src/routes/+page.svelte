@@ -43,6 +43,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { PhysicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
   import { open } from "@tauri-apps/plugin-dialog";
+  import { openUrl } from "@tauri-apps/plugin-opener";
 
   let sidebarPct = $state(40);          // current sidebar width in %
   let sidebarSaved = $state(40);        // width to restore on un-collapse
@@ -210,7 +211,7 @@
   let remoteWarningDialog = $state(false);
 
   // ── Toast notifications ─────────────────────────────────────
-  let toast = $state<{message: string, type: "warning" | "error"} | null>(null);
+  let toast = $state<{message: string, type: "warning" | "error", action?: {label: string, onClick: () => void}} | null>(null);
 
   let footerExpanded = $state(true);
   let zoomLevel = $state(0); // 0=normal, 1=medium, 2=large
@@ -438,9 +439,18 @@
     });
   }
 
+  /** Parse the repo name from a git remote URL. */
+  function extractRepoName(url: string): string | null {
+    // SSH: git@github.com:user/repo.git → repo
+    // SSH: git@github.com:user/repo → repo
+    // HTTPS: https://github.com/user/repo.git → repo
+    const match = url.match(/[:/]([^/]+?)(?:\.git)?\s*$/);
+    return match ? match[1] : null;
+  }
+
   /** Dismiss the toast after a delay. */
-  function showToast(message: string, type: "warning" | "error" = "warning") {
-    toast = { message, type };
+  function showToast(message: string, type: "warning" | "error" = "warning", action?: {label: string, onClick: () => void}) {
+    toast = { message, type, action };
     setTimeout(() => {
       if (toast?.message === message) toast = null;
     }, 5_000);
@@ -506,7 +516,19 @@
             console.log("[cronista] Remote configured:", remoteUrl);
           } catch (e) {
             console.error("[cronista] Remote config failed:", e);
-            showToast(String(e), "error");
+            const msg = String(e);
+            if (msg.startsWith("REPO_NOT_FOUND:")) {
+              const repoName = extractRepoName(remoteUrl);
+              showToast(
+                t("git.repoNotFound"),
+                "warning",
+                repoName
+                  ? { label: t("git.createOnGithub"), onClick: () => openUrl(`https://github.com/new?name=${repoName}`) }
+                  : undefined,
+              );
+            } else {
+              showToast(msg, "error");
+            }
           }
         }
 
@@ -1682,16 +1704,30 @@
               {:else if gitStatus === "not-initialized"}
                 <button class="git-indicator git-warn"
                   onclick={async () => {
+                    let initRemoteUrl: string | undefined;
                     try {
                       const result = await showIdentityDialog(projectPath);
                       await inicializarGit(projectPath);
                       if (result.remoteConfigured && result.remoteUrl) {
+                        initRemoteUrl = result.remoteUrl;
                         await configurarRemoto(projectPath, result.remoteUrl);
                       }
                       await actualizarGitStatus(projectPath);
                     } catch (e) {
                       console.error("[cronista] Git init failed:", e);
-                      alert(t("git.initError") + " " + e);
+                      const msg = String(e);
+                      if (msg.startsWith("REPO_NOT_FOUND:")) {
+                        const repoName = initRemoteUrl ? extractRepoName(initRemoteUrl) : null;
+                        showToast(
+                          t("git.repoNotFound"),
+                          "warning",
+                          repoName
+                            ? { label: t("git.createOnGithub"), onClick: () => openUrl(`https://github.com/new?name=${repoName}`) }
+                            : undefined,
+                        );
+                      } else {
+                        alert(t("git.initError") + " " + e);
+                      }
                     }
                   }}
                   title={t("git.notInitTitle")}>🟠 {t("git.notInit")}</button>
@@ -1886,14 +1922,28 @@
           class="btn-secondary"
           onclick={async () => {
             remoteWarningDialog = false;
+            let reconfRemoteUrl: string | undefined;
             try {
               const result = await showIdentityDialog(projectPath);
               if (result.remoteConfigured && result.remoteUrl) {
+                reconfRemoteUrl = result.remoteUrl;
                 await configurarRemoto(projectPath, result.remoteUrl);
               }
               await actualizarGitStatus(projectPath);
             } catch (e) {
-              showToast(String(e), "error");
+              const msg = String(e);
+              if (msg.startsWith("REPO_NOT_FOUND:")) {
+                const repoName = reconfRemoteUrl ? extractRepoName(reconfRemoteUrl) : null;
+                showToast(
+                  t("git.repoNotFound"),
+                  "warning",
+                  repoName
+                    ? { label: t("git.createOnGithub"), onClick: () => openUrl(`https://github.com/new?name=${repoName}`) }
+                    : undefined,
+                );
+              } else {
+                showToast(msg, "error");
+              }
             }
           }}
         >
@@ -1923,6 +1973,9 @@
 {#if toast}
   <div class="toast" class:toast-error={toast.type === "error"}>
     {toast.message}
+    {#if toast.action}
+      <button class="toast-action" onclick={toast.action.onClick}>{toast.action.label}</button>
+    {/if}
     <button class="toast-close" onclick={() => (toast = null)}>×</button>
   </div>
 {/if}
@@ -3612,5 +3665,21 @@
 
   .toast-close:hover {
     opacity: 1;
+  }
+
+  .toast-action {
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: inherit;
+    padding: 0.3rem 0.7rem;
+    border-radius: 0.3rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms;
+  }
+
+  .toast-action:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
 </style>

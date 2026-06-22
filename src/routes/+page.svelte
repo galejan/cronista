@@ -201,6 +201,9 @@
 
   // ── Editor & project state ──────────────────────────────────
   let projectPath = $state("");
+  let projectDisplayName = $derived(
+    projectPath.split(/[\\/]/).filter(Boolean).pop() || projectPath
+  );
   let gitEnabled = $state(false);
   let gitStatus = $state<"active" | "unavailable" | "not-initialized" | "unknown">("unknown");
   let gitInitModal = $state(false);
@@ -1968,7 +1971,7 @@
       <div class="editor-pane">
         <div class="editor-toolbar">
           <span class="project-label" title={projectPath}>
-            {(projectPath.match(/[^\\/]+$/) || [projectPath])[0]}
+            {projectDisplayName}
           </span>
           {#if activeChapter}
             <span class="chapter-label">{activeChapter}</span>

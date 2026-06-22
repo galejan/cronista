@@ -25,9 +25,11 @@
     eliminarEventoTimeline,
     exportarProyectoMd,
     exportarProyectoZip,
+    eliminarDirectorioGit,
     eliminarNota,
     eliminarPersonaje,
     guardarCapitulo,
+    importarProyecto,
     inicializarGit,
     listarNotas,
     listarPersonajes,
@@ -672,6 +674,70 @@
 
     // Keep last project for auto-reopen on next launch
     // (deliberately NOT removing from localStorage)
+  }
+
+  /** Import a Cronista project from a .zip file. */
+  async function importarProyectoHandler(): Promise<void> {
+    if (projectPath) await cerrarProyecto();
+
+    const docsDir = await documentDir();
+
+    // Step 1: Choose .zip file
+    const zipSelected = await open({
+      multiple: false,
+      title: t("import.selectZip"),
+      defaultPath: docsDir,
+      filters: [{ name: "ZIP", extensions: ["zip"] }],
+    });
+    if (!zipSelected) return;
+    const zipPath = zipSelected as string;
+
+    // Step 2: Choose destination folder
+    const destSelected = await open({
+      directory: true,
+      multiple: false,
+      title: t("import.selectDest"),
+      defaultPath: docsDir,
+    });
+    if (!destSelected) return;
+    const destDir = destSelected as string;
+
+    // Step 3: Extract
+    try {
+      const projectName = await importarProyecto(zipPath, destDir);
+      console.log("[cronista] Project imported:", projectName, "to", destDir);
+
+      // Step 4: Handle Git history
+      try {
+        const gitExists = await verificarGitInicializado(destDir);
+        if (gitExists) {
+          const keepHistory = confirm(t("import.gitQuestion"));
+          if (!keepHistory) {
+            await eliminarDirectorioGit(destDir);
+            await inicializarGit(destDir);
+          }
+        }
+      } catch {
+        // Git not available or check failed — continue
+      }
+
+      // Step 5: Open the imported project
+      projectPath = destDir;
+      setActiveProject(destDir);
+      await actualizarGitStatus(destDir);
+      const raw = await cargarIndice(destDir);
+      const meta = JSON.parse(raw);
+      chapters = meta.chapters_order ?? [];
+      fontFamily = meta.font_family || "monospace";
+      if (chapters.length > 0) {
+        await cargarCapituloActual(chapters[0]);
+      }
+      console.log("[cronista] Imported project opened:", meta.project_name, chapters);
+      showToast("✅ " + t("import.success"), "warning");
+    } catch (e) {
+      console.error("[cronista] Import failed:", e);
+      alert(t("import.error") + "\n\n" + String(e));
+    }
   }
 
   /** Determine git status: active / unavailable / not-initialized */
@@ -1730,6 +1796,9 @@
             <button class="footer-btn" onclick={() => abrirProyecto()} title={t("toolbar.openProjectTitle")}>
               📂 {t("toolbar.openProject")}
             </button>
+            <button class="footer-btn" onclick={importarProyectoHandler} title={t("import.title")}>
+              📥 {t("import.button")}
+            </button>
             <span class="footer-sep"></span>
             <button class="footer-btn" onclick={async () => {
               console.log("[cronista] Export button clicked");
@@ -1872,6 +1941,12 @@
             onclick={() => abrirProyecto()}
           >
             {t("setup.openProject")}
+          </button>
+          <button
+            class="btn-secondary"
+            onclick={importarProyectoHandler}
+          >
+            {t("import.button")}
           </button>
         </div>
       </div>

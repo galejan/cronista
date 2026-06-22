@@ -1213,6 +1213,12 @@
       const order: Array<"capitulos" | "personajes" | "notas"> = ["capitulos", "personajes", "notas"];
       const idx = order.indexOf(activeTab);
       activeTab = order[(idx + 1) % order.length];
+      // Focus first item in the new tab so arrow keys work immediately
+      setTimeout(() => {
+        const panel = document.querySelector<HTMLElement>(".sidebar-content .tab-panel:not([style*='display: none'])");
+        const firstBtn = panel?.querySelector<HTMLElement>("button.chapter-link, button.btn-add");
+        firstBtn?.focus();
+      }, 0);
       return;
     }
 
@@ -1254,6 +1260,31 @@
       }
     }
   }
+
+  /** Arrow key navigation within sidebar lists (chapters, characters, notes). */
+  function handleListKeydown(e: KeyboardEvent) {
+    const list = e.currentTarget as HTMLElement;
+    // Only handle vertical navigation keys
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+
+    const items = list.querySelectorAll<HTMLElement>("button.chapter-link");
+    if (items.length === 0) return;
+    const current = document.activeElement;
+    const idx = Array.from(items).indexOf(current as HTMLElement);
+
+    let next: HTMLElement | undefined;
+    if (e.key === "ArrowDown") {
+      next = items[Math.min(idx + 1, items.length - 1)];
+    } else if (e.key === "ArrowUp") {
+      next = items[Math.max(idx - 1, 0)];
+    } else if (e.key === "Home") {
+      next = items[0];
+    } else if (e.key === "End") {
+      next = items[items.length - 1];
+    }
+    next?.focus();
+  }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -1292,7 +1323,7 @@
           </button>
           {#if chapters.length > 0}
             <p class="chapter-list-label">{t("chapters.label")}</p>
-            <ul class="chapter-list">
+            <ul class="chapter-list" onkeydown={handleListKeydown}>
               {#each chapters as ch}
                 <li class="chapter-row">
                   <button
@@ -1328,7 +1359,7 @@
       {#if activeTab === "personajes"}
         <div class="tab-panel">
           {#if personajes.length > 0}
-            <ul class="chapter-list">
+            <ul class="chapter-list" onkeydown={handleListKeydown}>
               {#each personajes as p}
                 <li>
                   <button
@@ -1495,7 +1526,7 @@
       {#if activeTab === "notas"}
         <div class="tab-panel">
           {#if notas.length > 0}
-            <ul class="chapter-list">
+            <ul class="chapter-list" onkeydown={handleListKeydown}>
               {#each notas as n}
                 <li class="note-row">
                   <button

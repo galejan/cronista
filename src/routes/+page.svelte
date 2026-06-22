@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { fly } from "svelte/transition";
   import Editor from "$lib/components/Editor.svelte";
   import GitIdentityDialog from "$lib/components/GitIdentityDialog.svelte";
   import { debounce } from "$lib/debounce";
@@ -1869,6 +1870,46 @@
             onUpdate={handleEditorUpdate}
           />
         </div>
+
+        {#if characterDocked}
+          <div class="character-dock" transition:fly={{ x: 300, duration: 200 }}>
+            <div class="character-dock-header">
+              <h3>📌 {characterDocked.name}</h3>
+              <button class="character-dock-close" onclick={() => characterDocked = null}
+                title={t("characters.undock")}>✕</button>
+            </div>
+            <div class="character-dock-body">
+              {#if characterDocked.physicalDescription}
+                <div class="char-dock-field">
+                  <span class="char-dock-label">{t("characters.physicalDescription")}</span>
+                  <p>{characterDocked.physicalDescription}</p>
+                </div>
+              {/if}
+              {#if characterDocked.personality}
+                <div class="char-dock-field">
+                  <span class="char-dock-label">{t("characters.personality")}</span>
+                  <p>{characterDocked.personality}</p>
+                </div>
+              {/if}
+              {#if characterDocked.traumas}
+                <div class="char-dock-field">
+                  <span class="char-dock-label">{t("characters.traumas")}</span>
+                  <p>{characterDocked.traumas}</p>
+                </div>
+              {/if}
+              {#if characterDocked.relationships.length > 0}
+                <div class="char-dock-field">
+                  <span class="char-dock-label">{t("characters.relationships")}</span>
+                  <ul class="char-dock-rels">
+                    {#each characterDocked.relationships as rel}
+                      <li>{rel.targetName}{#if rel.type} — {rel.type}{/if}{#if rel.notes}: {rel.notes}{/if}</li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </main>
@@ -3766,5 +3807,101 @@
 
   .toast-action:hover {
     background: rgba(255, 255, 255, 0.3);
+  }
+
+  /* ── Character dock panel ───────────────────────────────────── */
+  .character-dock {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 320px;
+    max-height: calc(100% - 2rem);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  :global(.dark) .character-dock {
+    background: #1e293b;
+    border-color: #334155;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  .character-dock-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+  }
+  :global(.dark) .character-dock-header {
+    border-bottom-color: #334155;
+  }
+  .character-dock-header h3 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+  :global(.dark) .character-dock-header h3 {
+    color: #f1f5f9;
+  }
+  .character-dock-close {
+    background: none;
+    border: none;
+    font-size: 1.125rem;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+    border-radius: 4px;
+  }
+  .character-dock-close:hover { color: #ef4444; }
+  :global(.dark) .character-dock-close { color: #94a3b8; }
+  :global(.dark) .character-dock-close:hover { color: #f87171; }
+  .character-dock-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .char-dock-field {
+    margin-bottom: 0.75rem;
+  }
+  .char-dock-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  .char-dock-field p {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #334155;
+  }
+  :global(.dark) .char-dock-field p {
+    color: #cbd5e1;
+  }
+  .char-dock-rels {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .char-dock-rels li {
+    font-size: 0.8125rem;
+    color: #475569;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  :global(.dark) .char-dock-rels li {
+    color: #94a3b8;
+    border-bottom-color: #334155;
   }
 </style>

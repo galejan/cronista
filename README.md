@@ -162,12 +162,15 @@ Mi Novela/
 
 | Atajo | Acción |
 |-------|--------|
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>←</kbd> | Colapsar panel lateral |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>→</kbd> | Restaurar panel lateral |
-| <kbd>Ctrl</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | Reducir / ampliar panel lateral (5 %) |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>←</kbd> | Colapsar panel lateral (modo escritura) |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>→</kbd> | Panel lateral a pantalla completa (modo referencia) |
+| <kbd>Ctrl</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | Reducir / ampliar panel lateral (20 % – 100 %) |
+| <kbd>Ctrl</kbd> + <kbd>T</kbd> | Navegar pestañas (capítulos → personajes → notas) |
+| <kbd>Ctrl</kbd> + <kbd>L</kbd> | Mostrar / ocultar línea de tiempo |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Anclar / desanclar ficha del personaje seleccionado |
+| <kbd>↑</kbd> / <kbd>↓</kbd> / <kbd>Inicio</kbd> / <kbd>Fin</kbd> | Navegar listas del panel lateral |
 | <kbd>Ctrl</kbd> + <kbd>P</kbd> | Mostrar / ocultar panel de herramientas |
 | <kbd>Ctrl</kbd> + <kbd>S</kbd> | Guardar ahora |
-| <kbd>Ctrl</kbd> + <kbd>N</kbd> | Nuevo capítulo |
 | <kbd>Ctrl</kbd> + <kbd>O</kbd> | Abrir otro proyecto (cierra el actual) |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> | Nuevo proyecto (cierra el actual) |
 | <kbd>Ctrl</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> | Subir / bajar nivel de título |

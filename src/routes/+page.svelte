@@ -712,17 +712,17 @@
 
     // Step 3: Extract
     try {
-      const projectName = await importarProyecto(zipPath, destDir);
-      console.log("[cronista] Project imported:", projectName, "to", destDir);
+      const importedPath = await importarProyecto(zipPath, destDir);
+      console.log("[cronista] Project imported to:", importedPath);
 
       // Step 4: Handle Git history
       try {
-        const gitExists = await verificarGitInicializado(destDir);
+        const gitExists = await verificarGitInicializado(importedPath);
         if (gitExists) {
           const keepHistory = confirm(t("import.gitQuestion"));
           if (!keepHistory) {
-            await eliminarDirectorioGit(destDir);
-            await inicializarGit(destDir);
+            await eliminarDirectorioGit(importedPath);
+            await inicializarGit(importedPath);
           }
         }
       } catch {
@@ -730,10 +730,10 @@
       }
 
       // Step 5: Open the imported project
-      projectPath = destDir;
-      setActiveProject(destDir);
-      await actualizarGitStatus(destDir);
-      const raw = await cargarIndice(destDir);
+      projectPath = importedPath;
+      setActiveProject(importedPath);
+      await actualizarGitStatus(importedPath);
+      const raw = await cargarIndice(importedPath);
       const meta = JSON.parse(raw);
       chapters = meta.chapters_order ?? [];
       fontFamily = meta.font_family || "monospace";

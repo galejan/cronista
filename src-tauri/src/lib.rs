@@ -1593,8 +1593,9 @@ fn exportar_proyecto_zip(proyecto_path: String) -> Result<String, String> {
     let options = FileOptions::<()>::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
-    // Walk the project directory and add all files
-    add_dir_to_zip(base, base, &mut zip_writer, &options)
+    // Walk the project directory and add all files, prefixed with project name
+    let zip_prefix = format!("{}/", project_name);
+    add_dir_to_zip(base, base, &zip_prefix, &mut zip_writer, &options)
         .map_err(|e| format!("Error al comprimir: {}", e))?;
 
     zip_writer.finish()
@@ -1603,10 +1604,11 @@ fn exportar_proyecto_zip(proyecto_path: String) -> Result<String, String> {
     Ok(zip_path.display().to_string())
 }
 
-/// Recursively add directory contents to a zip writer.
+/// Recursively add directory contents to a zip writer, under a prefix folder.
 fn add_dir_to_zip(
     base: &Path,
     dir: &Path,
+    prefix: &str,
     zip: &mut zip::ZipWriter<std::fs::File>,
     options: &zip::write::FileOptions<()>,
 ) -> Result<(), String> {
@@ -1623,14 +1625,14 @@ fn add_dir_to_zip(
 
         let relative = path.strip_prefix(base)
             .map_err(|e| format!("Error: {}", e))?;
-        let name = relative.to_string_lossy();
+        let name = format!("{}{}", prefix, relative.to_string_lossy());
 
         if path.is_dir() {
-            zip.add_directory(name, *options)
+            zip.add_directory(&name, *options)
                 .map_err(|e| format!("Error al añadir directorio: {}", e))?;
-            add_dir_to_zip(base, &path, zip, options)?;
+            add_dir_to_zip(base, &path, prefix, zip, options)?;
         } else {
-            zip.start_file(name, *options)
+            zip.start_file(&name, *options)
                 .map_err(|e| format!("Error al iniciar archivo: {}", e))?;
             let contents = std::fs::read(&path)
                 .map_err(|e| format!("Error al leer {}: {}", path.display(), e))?;
@@ -1683,8 +1685,12 @@ fn exportar_proyecto_md(proyecto_path: String) -> Result<String, String> {
 /// Import a Cronista project from a .zip file.
 ///
 /// Extracts all contents into the chosen destination directory.
-/// Verifies the zip contains a metadata.json to confirm it's a valid
-/// Cronista project.  Returns the project name on success.
+/// A well-formed Cronista ZIP wraps files in a project folder;
+/// this function finds that folder by scanning for .config/metadata.json
+/// inside the first level of subdirectories.  Falls back to the
+/// destination root for legacy ZIPs without a wrapping folder.
+///
+/// Returns the actual project path (e.g. Documents/Hammet) on success.
 #[tauri::command]
 fn importar_proyecto(zip_path: String, destino: String) -> Result<String, String> {
     let zip_file = std::fs::File::open(&zip_path)
@@ -1724,19 +1730,36 @@ fn importar_proyecto(zip_path: String, destino: String) -> Result<String, String
         }
     }
 
-    // Verify it's a valid Cronista project
-    let metadata_path = destino_path.join(".config").join("metadata.json");
-    if !metadata_path.exists() {
-        return Err("El archivo ZIP no parece ser un proyecto de Cronista (falta metadata.json).".to_string());
+    // Find the project root: scan first-level subdirectories for .config/metadata.json.
+    // Also check the destination root itself (legacy ZIPs without wrapping folder).
+    let mut project_root = destino_path.to_path_buf();
+    let mut found = false;
+
+    // Check destination root first
+    if destino_path.join(".config").join("metadata.json").exists() {
+        found = true;
+    } else if let Ok(entries) = std::fs::read_dir(destino_path) {
+        for entry in entries.flatten() {
+            let sub = entry.path();
+            if sub.is_dir() && sub.join(".config").join("metadata.json").exists() {
+                project_root = sub;
+                found = true;
+                break;
+            }
+        }
     }
 
-    // Read project name from metadata for the success message
-    let raw = std::fs::read_to_string(&metadata_path)
+    if !found {
+        return Err("El archivo ZIP no parece ser un proyecto de Cronista (falta .config/metadata.json).".to_string());
+    }
+
+    // Read project name for the success message
+    let raw = std::fs::read_to_string(project_root.join(".config").join("metadata.json"))
         .map_err(|e| format!("Proyecto extraído pero no se pudo leer metadata: {}", e))?;
-    let metadata: Metadata = serde_json::from_str(&raw)
+    let _metadata: Metadata = serde_json::from_str(&raw)
         .map_err(|e| format!("Proyecto extraído pero metadata.json es inválido: {}", e))?;
 
-    Ok(metadata.project_name)
+    Ok(project_root.display().to_string())
 }
 
 /// Helper: read project metadata.

@@ -1319,7 +1319,7 @@
         <div class="tab-panel">
           {#if chapters.length > 0}
             <p class="chapter-list-label">{t("chapters.label")}</p>
-            <ul class="chapter-list" onkeydown={handleListKeydown}>
+            <ul class="chapter-list" role="listbox" onkeydown={handleListKeydown}>
               {#each chapters as ch}
                 <li class="chapter-row">
                   <button
@@ -1355,7 +1355,7 @@
       {#if activeTab === "personajes"}
         <div class="tab-panel">
           {#if personajes.length > 0}
-            <ul class="chapter-list" onkeydown={handleListKeydown}>
+            <ul class="chapter-list" role="listbox" onkeydown={handleListKeydown}>
               {#each personajes as p}
                 <li>
                   <button
@@ -1522,7 +1522,7 @@
       {#if activeTab === "notas"}
         <div class="tab-panel">
           {#if notas.length > 0}
-            <ul class="chapter-list" onkeydown={handleListKeydown}>
+            <ul class="chapter-list" role="listbox" onkeydown={handleListKeydown}>
               {#each notas as n}
                 <li class="note-row">
                   <button

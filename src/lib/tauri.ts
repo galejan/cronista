@@ -246,3 +246,11 @@ export async function reintentarPush(path: string): Promise<string> {
 export async function sincronizarRemoto(path: string): Promise<string> {
   return invoke("sincronizar_remoto", { path });
 }
+
+export async function importarProyecto(zipPath: string, destino: string): Promise<string> {
+  return invoke("importar_proyecto", { zipPath, destino });
+}
+
+export async function eliminarDirectorioGit(path: string): Promise<void> {
+  return invoke("eliminar_directorio_git", { path });
+}

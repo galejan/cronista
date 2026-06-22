@@ -424,6 +424,18 @@ fn verificar_git_inicializado(path: String) -> Result<bool, String> {
     Ok(Path::new(&path).join(".git").exists())
 }
 
+/// Remove the .git directory from a project (used when importing a project
+/// and the user wants to start a fresh history).
+#[tauri::command]
+fn eliminar_directorio_git(path: String) -> Result<(), String> {
+    let git_dir = std::path::Path::new(&path).join(".git");
+    if git_dir.exists() {
+        std::fs::remove_dir_all(&git_dir)
+            .map_err(|e| format!("No se pudo eliminar el historial Git: {}", e))?;
+    }
+    Ok(())
+}
+
 /// Return the list of .md files changed in a given commit.
 fn get_changed_md_files(
     project_path: &Path,
@@ -1668,6 +1680,65 @@ fn exportar_proyecto_md(proyecto_path: String) -> Result<String, String> {
     Ok(md_path.display().to_string())
 }
 
+/// Import a Cronista project from a .zip file.
+///
+/// Extracts all contents into the chosen destination directory.
+/// Verifies the zip contains a metadata.json to confirm it's a valid
+/// Cronista project.  Returns the project name on success.
+#[tauri::command]
+fn importar_proyecto(zip_path: String, destino: String) -> Result<String, String> {
+    let zip_file = std::fs::File::open(&zip_path)
+        .map_err(|e| format!("No se pudo abrir el archivo ZIP: {}", e))?;
+
+    let mut archive = zip::ZipArchive::new(zip_file)
+        .map_err(|e| format!("El archivo no es un ZIP válido: {}", e))?;
+
+    let destino_path = std::path::Path::new(&destino);
+
+    // Create destination if it doesn't exist
+    std::fs::create_dir_all(destino_path)
+        .map_err(|e| format!("No se pudo crear la carpeta de destino (comprobá los permisos): {}", e))?;
+
+    // Extract all files
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)
+            .map_err(|e| format!("Error al leer entrada del ZIP: {}", e))?;
+
+        let out_path = match file.enclosed_name() {
+            Some(path) => destino_path.join(path),
+            None => continue,
+        };
+
+        if file.name().ends_with('/') {
+            std::fs::create_dir_all(&out_path)
+                .map_err(|e| format!("Error al crear directorio {}: {}", out_path.display(), e))?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Error al crear directorio {}: {}", parent.display(), e))?;
+            }
+            let mut outfile = std::fs::File::create(&out_path)
+                .map_err(|e| format!("Error al crear archivo {} (comprobá los permisos): {}", out_path.display(), e))?;
+            std::io::copy(&mut file, &mut outfile)
+                .map_err(|e| format!("Error al extraer {}: {}", out_path.display(), e))?;
+        }
+    }
+
+    // Verify it's a valid Cronista project
+    let metadata_path = destino_path.join(".config").join("metadata.json");
+    if !metadata_path.exists() {
+        return Err("El archivo ZIP no parece ser un proyecto de Cronista (falta metadata.json).".to_string());
+    }
+
+    // Read project name from metadata for the success message
+    let raw = std::fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Proyecto extraído pero no se pudo leer metadata: {}", e))?;
+    let metadata: Metadata = serde_json::from_str(&raw)
+        .map_err(|e| format!("Proyecto extraído pero metadata.json es inválido: {}", e))?;
+
+    Ok(metadata.project_name)
+}
+
 /// Helper: read project metadata.
 fn read_metadata(base: &Path) -> Result<Metadata, String> {
     let meta_path = base.join(".config").join("metadata.json");
@@ -2142,6 +2213,7 @@ pub fn run() {
             marcar_proyecto_cronista,
             inicializar_git,
             verificar_git_inicializado,
+            eliminar_directorio_git,
             obtener_git_log,
             detectar_git,
             set_active_project,
@@ -2166,6 +2238,7 @@ pub fn run() {
             eliminar_evento_timeline,
             exportar_proyecto_zip,
             exportar_proyecto_md,
+            importar_proyecto,
             cargar_identidad_git,
             guardar_identidad_git,
             cargar_config_remoto,

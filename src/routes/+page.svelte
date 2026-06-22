@@ -248,8 +248,14 @@
         console.log("[cronista:close]   gitEnabled:", gitOk);
 
         if (!path || !gitOk) {
-          console.log("[cronista:close] → no project or no git, letting close through");
-          return; // No preventDefault — window closes normally
+          console.log("[cronista:close] → no project or no git, closing immediately");
+          event.preventDefault();
+          try {
+            getCurrentWindow().destroy();
+          } catch (e) {
+            console.error("[cronista:close]   destroy FAILED:", e);
+          }
+          return;
         }
 
         if (untrack(() => closing)) {

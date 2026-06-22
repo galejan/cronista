@@ -151,6 +151,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "characters.createError": "Error al crear personaje:",
     "characters.saveError": "Error al guardar personaje:",
     "characters.deleteError": "Error al eliminar personaje:",
+    "characters.undock": "Desanclar",
 
     // ── Notes ──────────────────────────────────────────────
     "notes.empty": "Sin notas aún.",
@@ -211,7 +212,7 @@ const translations: Record<Lang, Record<string, string>> = {
       "Con Ctrl+D se inserta un par de guiones largos (—) y el cursor queda en el medio, listo para escribir el diálogo.",
     "help.shortcutsTitle": "⌨️ Atajos de teclado",
     "help.shortcuts.toggleSidebar": "Colapsar panel lateral",
-    "help.shortcuts.restoreSidebar": "Restaurar panel lateral",
+    "help.shortcuts.restoreSidebar": "Panel lateral a pantalla completa",
     "help.shortcuts.resizeSidebar": "Reducir / ampliar panel lateral (5 % por paso)",
     "help.shortcuts.toggleFooter": "Mostrar / ocultar panel de herramientas",
     "help.shortcuts.zoomIn": "Aumentar tamaño de letra",
@@ -224,6 +225,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.applyHeading": "Subir / bajar nivel de título (H1 ↔ H2 ↔ normal)",
     "help.shortcuts.fullscreen": "Pantalla completa",
     "help.shortcuts.toggleHelp": "Mostrar / ocultar esta ayuda",
+    "help.shortcuts.cycleTabs": "Navegar pestañas",
+    "help.shortcuts.toggleTimeline": "Mostrar/ocultar línea de tiempo",
+    "help.shortcuts.fullSidebar": "Panel lateral a pantalla completa (referencia)",
+    "help.shortcuts.dockCharacter": "Anclar/desanclar ficha del personaje",
 
     // ── Dialogs (prompts and confirmations) ────────────────
     "dialog.selectCreateFolder":
@@ -413,6 +418,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "characters.createError": "Error creating character:",
     "characters.saveError": "Error saving character:",
     "characters.deleteError": "Error deleting character:",
+    "characters.undock": "Undock",
 
     // ── Notes ──────────────────────────────────────────────
     "notes.empty": "No notes yet.",
@@ -473,7 +479,7 @@ const translations: Record<Lang, Record<string, string>> = {
       "Ctrl+D inserts a pair of em dashes (—) with the cursor in the middle, ready to type dialogue.",
     "help.shortcutsTitle": "⌨️ Keyboard Shortcuts",
     "help.shortcuts.toggleSidebar": "Collapse sidebar",
-    "help.shortcuts.restoreSidebar": "Restore sidebar",
+    "help.shortcuts.restoreSidebar": "Full-width sidebar",
     "help.shortcuts.resizeSidebar": "Shrink / grow sidebar (5% per step)",
     "help.shortcuts.toggleFooter": "Show / hide tools panel",
     "help.shortcuts.zoomIn": "Increase font size",
@@ -486,6 +492,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.applyHeading": "Increase / decrease heading level (H1 ↔ H2 ↔ normal)",
     "help.shortcuts.fullscreen": "Full screen",
     "help.shortcuts.toggleHelp": "Show / hide this help",
+    "help.shortcuts.cycleTabs": "Cycle tabs",
+    "help.shortcuts.toggleTimeline": "Toggle timeline",
+    "help.shortcuts.fullSidebar": "Full-width sidebar (reference mode)",
+    "help.shortcuts.dockCharacter": "Dock/undock character card",
 
     // ── Dialogs (prompts and confirmations) ────────────────
     "dialog.selectCreateFolder":

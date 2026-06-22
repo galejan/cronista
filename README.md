@@ -47,6 +47,18 @@ La aplicación funciona sin Git. Lo único que se pierde es el historial de vers
 
 Dentro de la aplicación, el indicador `→` en el panel inferior abre una ventana con las últimas sesiones: fecha, recuento de palabras, archivos modificados y el hash del commit.
 
+### Sincronización remota (SSH)
+
+Cronista permite sincronizar proyectos con un repositorio remoto (GitHub, GitLab, Bitbucket) mediante SSH. Esto permite continuar el trabajo desde otro equipo sin perder el historial.
+
+Al crear un proyecto, o desde la identidad Git en la barra de herramientas, se puede configurar una URL SSH. Cronista:
+
+- Detecta si el repositorio remoto no existe y ofrece crearlo en GitHub.
+- Detecta si el remoto ya tiene historial previo (de otra máquina) y ofrece sincronizar ambos historiales de forma segura.
+- Aplica una política de 3 intentos: si el push falla tres veces, desactiva la sincronización automática para evitar interrupciones. Se puede reactivar desde la barra de herramientas.
+
+**Nota:** Solo se admiten URLs SSH (`git@github.com:usuario/repo.git`). Las URLs HTTPS no son compatibles por seguridad.
+
 ---
 
 ## Exportación y uso compartido
@@ -108,7 +120,7 @@ cronista/
 │       └── +page.svelte  # Layout principal (sidebar + editor)
 ├── src-tauri/            # Backend Rust
 │   └── src/
-│       ├── lib.rs        # ~30 comandos Tauri + lógica de archivos
+│       ├── lib.rs        # ~40 comandos Tauri + lógica de archivos
 │       └── main.rs       # Entry point
 ├── docs/                 # Documentación de diseño
 ├── openspec/             # Artefactos SDD
@@ -171,7 +183,7 @@ Mi Novela/
 El backend Rust expone los siguientes comandos Tauri:
 
 - **Proyecto**: `crear_proyecto`, `set_active_project`, `marcar_proyecto_cronista`
-- **Git**: `detectar_git`, `inicializar_git`, `inicializar_git_con_autor`, `crear_checkpoint`, `verificar_git_inicializado`, `obtener_git_log`
+- **Git**: `detectar_git`, `inicializar_git`, `inicializar_git_con_autor`, `crear_checkpoint`, `verificar_git_inicializado`, `obtener_git_log`, `configurar_remoto`, `sincronizar_remoto`, `reintentar_push`
 - **Capítulos**: `guardar_capitulo`, `cargar_capitulo`, `crear_capitulo`, `eliminar_capitulo`, `cargar_indice`
 - **Personajes**: `listar_personajes`, `crear_personaje`, `cargar_personaje`, `actualizar_personaje`, `eliminar_personaje`
 - **Notas**: `listar_notas`, `crear_nota`, `cargar_nota`, `eliminar_nota`

@@ -1968,7 +1968,7 @@
       <div class="editor-pane">
         <div class="editor-toolbar">
           <span class="project-label" title={projectPath}>
-            {projectPath.replace(/\\/g, "/").split("/").pop() || projectPath}
+            {(projectPath.match(/[^\\/]+$/) || [projectPath])[0]}
           </span>
           {#if activeChapter}
             <span class="chapter-label">{activeChapter}</span>

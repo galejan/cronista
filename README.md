@@ -9,7 +9,7 @@
 | Principio | En la práctica |
 |-----------|----------------|
 | **Zona de escritura limpia** | La mayor parte de la pantalla es solo para escribir. Sin menús, sin barra de formato. |
-| **Sidebar integrado** | Capítulos, personajes, notas y línea de tiempo en el panel lateral. Con drag and drop en la línea temporal. |
+| **Sidebar integrado** | Capítulos, personajes, notas y línea de tiempo en el panel lateral. Eventos expandibles, editables y reordenables con drag and drop. |
 | **Local-First** | Todo en tu disco. `.md` para el texto, `.json` para índices y metadatos. |
 | **Git invisible** | Cada cierre de la aplicación crea un checkpoint automático. Historial completo sin intervención manual. |
 | **TipTap como motor** | Editor WYSIWYG con títulos semánticos (H1, H2). Limpio, sin distracciones de formato. |
@@ -185,6 +185,8 @@ Mi Novela/
 | <kbd>↑</kbd> / <kbd>↓</kbd> / <kbd>Inicio</kbd> / <kbd>Fin</kbd> | Navegar listas del panel lateral |
 | <kbd>Ctrl</kbd> + <kbd>P</kbd> | Mostrar / ocultar panel de herramientas |
 | <kbd>Ctrl</kbd> + <kbd>S</kbd> | Guardar ahora |
+| <kbd>Ctrl</kbd> + <kbd>N</kbd> | Nuevo capítulo |
+| <kbd>Alt</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | Capítulo anterior / siguiente |
 | <kbd>Ctrl</kbd> + <kbd>O</kbd> | Abrir otro proyecto (cierra el actual) |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> | Nuevo proyecto (cierra el actual) |
 | <kbd>Ctrl</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> | Subir / bajar nivel de título |
@@ -204,7 +206,7 @@ El backend Rust expone los siguientes comandos Tauri:
 - **Capítulos**: `guardar_capitulo`, `cargar_capitulo`, `crear_capitulo`, `eliminar_capitulo`, `cargar_indice`
 - **Personajes**: `listar_personajes`, `crear_personaje`, `cargar_personaje`, `actualizar_personaje`, `eliminar_personaje`
 - **Notas**: `listar_notas`, `crear_nota`, `cargar_nota`, `eliminar_nota`
-- **Timeline**: `cargar_timeline`, `agregar_evento_timeline`, `reordenar_timeline`, `eliminar_evento_timeline`
+- **Timeline**: `cargar_timeline`, `agregar_evento_timeline`, `actualizar_evento_timeline`, `reordenar_timeline`, `eliminar_evento_timeline`
 - **Exportación**: `exportar_proyecto_zip`, `exportar_proyecto_md`, `importar_proyecto`, `eliminar_directorio_git`
 
 ---

@@ -1241,6 +1241,22 @@
       return;
     }
 
+    // Alt+Left — previous chapter
+    if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key === "ArrowLeft") {
+      if (!projectPath || !activeChapter) return;
+      e.preventDefault();
+      capituloAnterior();
+      return;
+    }
+
+    // Alt+Right — next chapter (or new chapter if at the end)
+    if (e.altKey && !e.ctrlKey && !e.shiftKey && e.key === "ArrowRight") {
+      if (!projectPath || !activeChapter) return;
+      e.preventDefault();
+      capituloSiguiente();
+      return;
+    }
+
     // Ctrl+S — manual save
     if (e.ctrlKey && !e.shiftKey && e.key === "s") {
       e.preventDefault();
@@ -2235,6 +2251,7 @@
           <tr><td><kbd>Ctrl+P</kbd></td><td>{t("help.shortcuts.toggleFooter")}</td></tr>
           <tr><td><kbd>Ctrl+S</kbd></td><td>{t("help.shortcuts.saveNow")}</td></tr>
           <tr><td><kbd>Ctrl+N</kbd></td><td>{t("help.shortcuts.newChapter")}</td></tr>
+          <tr><td><kbd>Alt+←</kbd> / <kbd>Alt+→</kbd></td><td>{t("help.shortcuts.prevNextChapter")}</td></tr>
           <tr><td><kbd>Ctrl+O</kbd></td><td>{t("help.shortcuts.openProject")}</td></tr>
           <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>{t("help.shortcuts.newProject")}</td></tr>
           <tr><td><kbd>Ctrl+T</kbd></td><td>{t("help.shortcuts.cycleTabs")}</td></tr>

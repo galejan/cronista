@@ -14,6 +14,7 @@
 | **Git invisible** | Cada cierre de la aplicación crea un checkpoint automático. Historial completo sin intervención manual. |
 | **TipTap como motor** | Editor WYSIWYG con títulos semánticos (H1, H2). Limpio, sin distracciones de formato. |
 | **Exportación integrada** | Permite exportar el proyecto completo en `.zip` o compartir solo los capítulos en un único `.md`. |
+| **Configuración editable** | Tipografía, identidad Git y repositorio remoto se pueden cambiar en cualquier momento desde el panel de herramientas (⚙️ Configuración). Sin necesidad de crear un proyecto nuevo. |
 | **Accesibilidad** | Zoom de interfaz con `Ctrl++` / `Ctrl+-`. Tres niveles para adaptarse a cada vista. |
 
 ---
@@ -51,13 +52,27 @@ Dentro de la aplicación, el indicador `→` en el panel inferior abre una venta
 
 Cronista permite sincronizar proyectos con un repositorio remoto (GitHub, GitLab, Bitbucket) mediante SSH. Esto permite continuar el trabajo desde otro equipo sin perder el historial.
 
-Al crear un proyecto, o desde la identidad Git en la barra de herramientas, se puede configurar una URL SSH. Cronista:
+Al crear un proyecto, o desde el panel de herramientas (⚙️ **Configuración**), se puede establecer o cambiar la URL SSH. Cronista:
 
 - Detecta si el repositorio remoto no existe y ofrece crearlo en GitHub.
 - Detecta si el remoto ya tiene historial previo (de otra máquina) y ofrece sincronizar ambos historiales de forma segura.
 - Aplica una política de 3 intentos: si el push falla tres veces, desactiva la sincronización automática para evitar interrupciones. Se puede reactivar desde la barra de herramientas.
 
 **Nota:** Solo se admiten URLs SSH (`git@github.com:usuario/repo.git`). Las URLs HTTPS no son compatibles por seguridad.
+
+---
+
+## Configuración del proyecto
+
+Una vez creado el proyecto, toda la configuración se puede modificar desde el panel de herramientas (⚙️ Configuración). El diálogo tiene tres pestañas:
+
+| Pestaña | Qué permite cambiar |
+|---------|-------------------|
+| **Tipografía** | Cambiar entre monoespaciada, con serifa (Serif) o sin serifa (Sans-serif). Se aplica a todo el texto del editor. |
+| **Identidad Git** | Nombre, email y usuario de GitHub. Estos datos se usan para firmar los checkpoints automáticos de Git. |
+| **Remoto** | La URL SSH del repositorio remoto. Permite cambiar de repositorio o corregir la URL sin perder el historial. |
+
+Los cambios se guardan individualmente por pestaña. Si se cierra el diálogo sin guardar, los cambios se descartan.
 
 ---
 

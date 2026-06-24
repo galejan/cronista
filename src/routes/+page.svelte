@@ -38,7 +38,7 @@
     inicializarGit,
     listarNotas,
     listarPersonajes,
-    marcarProyectoCronista,
+    marcarProyectoCronInsta,
     obtenerGitLog,
     reintentarPush,
     reordenarTimeline,
@@ -103,7 +103,7 @@
 
   // ── Persist theme in localStorage, default to system preference ──
   $effect(() => {
-    const stored = localStorage.getItem("cronista-theme");
+    const stored = localStorage.getItem("cron-insta-theme");
     if (stored === "light" || stored === "dark") {
       theme = stored;
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -114,11 +114,11 @@
   // ── Set window title (hide dev URL) ──────────────────────────
   $effect(() => {
     try {
-      getCurrentWindow().setTitle("Cronista");
+      getCurrentWindow().setTitle("Cron-Insta");
     } catch { /* not in Tauri */ }
   });
   $effect(() => {
-    const stored = localStorage.getItem("cronista-theme");
+    const stored = localStorage.getItem("cron-insta-theme");
     if (stored === "light" || stored === "dark") {
       theme = stored;
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -128,7 +128,7 @@
 
   // ── Restore zoom level ────────────────────────────────────────
   $effect(() => {
-    const stored = localStorage.getItem("cronista-zoom");
+    const stored = localStorage.getItem("cron-insta-zoom");
     if (stored) zoomLevel = Math.min(2, Math.max(0, Number(stored)));
   });
 
@@ -138,7 +138,7 @@
     document.body.style.zoom = String(scales[zoomLevel] ?? 1);
   });
   $effect(() => {
-    const stored = localStorage.getItem("cronista-theme");
+    const stored = localStorage.getItem("cron-insta-theme");
     if (stored === "light" || stored === "dark") {
       theme = stored;
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -167,13 +167,13 @@
         win.outerSize(),
         win.outerPosition(),
       ]);
-      localStorage.setItem("cronista-window-maximized", String(isMax));
+      localStorage.setItem("cron-insta-window-maximized", String(isMax));
       localStorage.setItem(
-        "cronista-window-size",
+        "cron-insta-window-size",
         JSON.stringify({ width: size.width, height: size.height }),
       );
       localStorage.setItem(
-        "cronista-window-position",
+        "cron-insta-window-position",
         JSON.stringify({ x: pos.x, y: pos.y }),
       );
     } catch {
@@ -184,13 +184,13 @@
   async function restoreWindowState(): Promise<void> {
     try {
       const win = getCurrentWindow();
-      const storedMax = localStorage.getItem("cronista-window-maximized");
+      const storedMax = localStorage.getItem("cron-insta-window-maximized");
       if (storedMax === "true") {
         await win.maximize();
         return;
       }
-      const storedSize = localStorage.getItem("cronista-window-size");
-      const storedPos = localStorage.getItem("cronista-window-position");
+      const storedSize = localStorage.getItem("cron-insta-window-size");
+      const storedPos = localStorage.getItem("cron-insta-window-position");
       if (storedSize) {
         const { width, height } = JSON.parse(storedSize);
         await win.setSize(new PhysicalSize(width, height));
@@ -207,7 +207,7 @@
   // ── Restore sidebar width and window state on mount ───────────
   $effect(() => {
     // Restore sidebar width
-    const savedPct = localStorage.getItem("cronista-sidebar-pct");
+    const savedPct = localStorage.getItem("cron-insta-sidebar-pct");
     if (savedPct) {
       const val = Number(savedPct);
       if (val >= 20 && val <= 60) {
@@ -242,7 +242,7 @@
   // ── Persist sidebar width on every change ─────────────────────
   $effect(() => {
     if (sidebarPct > 0) {
-      localStorage.setItem("cronista-sidebar-pct", String(sidebarPct));
+      localStorage.setItem("cron-insta-sidebar-pct", String(sidebarPct));
     }
   });
 
@@ -302,35 +302,35 @@
 
     try {
       const w = getCurrentWindow();
-      console.log("[cronista:close] Registering onCloseRequested handler");
+      console.log("[cron-insta:close] Registering onCloseRequested handler");
 
       w.onCloseRequested(async (event) => {
         const path = untrack(() => projectPath);
         const gitOk = untrack(() => gitEnabled);
 
-        console.log("[cronista:close] ── Close requested ──");
-        console.log("[cronista:close]   projectPath:", path || "(none)");
-        console.log("[cronista:close]   gitEnabled:", gitOk);
+        console.log("[cron-insta:close] ── Close requested ──");
+        console.log("[cron-insta:close]   projectPath:", path || "(none)");
+        console.log("[cron-insta:close]   gitEnabled:", gitOk);
 
         if (!path || !gitOk) {
-          console.log("[cronista:close] → no project or no git, closing immediately");
+          console.log("[cron-insta:close] → no project or no git, closing immediately");
           event.preventDefault();
           try {
             getCurrentWindow().destroy();
           } catch (e) {
-            console.error("[cronista:close]   destroy FAILED:", e);
+            console.error("[cron-insta:close]   destroy FAILED:", e);
           }
           return;
         }
 
         if (untrack(() => closing)) {
-          console.log("[cronista:close] → already closing, letting through");
+          console.log("[cron-insta:close] → already closing, letting through");
           return;
         }
 
         closing = true;
         closeStep = "Cerrando aplicación...";
-        console.log("[cronista:close] → showing overlay, Rust handles checkpoint");
+        console.log("[cron-insta:close] → showing overlay, Rust handles checkpoint");
 
         event.preventDefault(); // Keep window alive while overlay shows
 
@@ -339,24 +339,24 @@
 
         // Force-close. Rust's on_window_event already did the checkpoint
         // (or is about to) on its own thread.
-        console.log("[cronista:close] → destroying window");
+        console.log("[cron-insta:close] → destroying window");
         try {
           getCurrentWindow().destroy();
         } catch (e) {
-          console.error("[cronista:close]   destroy FAILED:", e);
+          console.error("[cron-insta:close]   destroy FAILED:", e);
         }
       }).then((fn) => {
         unlisten = fn;
-        console.log("[cronista:close] Handler registered successfully");
+        console.log("[cron-insta:close] Handler registered successfully");
       }).catch((err) => {
-        console.error("[cronista:close] Failed to register handler:", err);
+        console.error("[cron-insta:close] Failed to register handler:", err);
       });
     } catch (err) {
-      console.error("[cronista:close] Not in Tauri:", err);
+      console.error("[cron-insta:close] Not in Tauri:", err);
     }
 
     return () => {
-      console.log("[cronista:close] Effect cleanup — unregistering handler");
+      console.log("[cron-insta:close] Effect cleanup — unregistering handler");
       unlisten?.();
     };
   });
@@ -412,21 +412,21 @@
     saveStatus = "saving";
 
     if (activeNote) {
-      console.log("[cronista] Saving note:", activeNote);
+      console.log("[cron-insta] Saving note:", activeNote);
       try {
         await crearNota(projectPath, activeNote, notaTitulo, editorContent);
         saveStatus = "saved";
-        console.log("[cronista] Save Note OK:", activeNote);
+        console.log("[cron-insta] Save Note OK:", activeNote);
       } catch (e) {
-        console.error("[cronista] Save note failed:", e);
+        console.error("[cron-insta] Save note failed:", e);
         saveStatus = "unsaved";
       }
     } else if (activeChapter) {
-      console.log("[cronista] Saving chapter:", activeChapter);
+      console.log("[cron-insta] Saving chapter:", activeChapter);
       try {
         await guardarCapitulo(projectPath, activeChapter, editorContent);
         saveStatus = "saved";
-        console.log("[cronista] Save OK:", activeChapter);
+        console.log("[cron-insta] Save OK:", activeChapter);
 
         // Trigger checkpoint for auto-push (best-effort, non-blocking)
         try {
@@ -441,7 +441,7 @@
           // Silently ignore checkpoint errors during save
         }
       } catch (e) {
-        console.error("[cronista] Save failed:", e);
+        console.error("[cron-insta] Save failed:", e);
         saveStatus = "unsaved";
       }
     }
@@ -460,7 +460,7 @@
   async function cargarCapituloActual(filename: string): Promise<void> {
     if (!projectPath) return;
     save.cancel();
-    console.log("[cronista] Loading chapter:", filename);
+    console.log("[cron-insta] Loading chapter:", filename);
     try {
       const content = await cargarCapitulo(projectPath, filename);
       editorRef?.setContent(content);
@@ -468,9 +468,9 @@
       activeChapter = filename;
       editorContent = content;
       saveStatus = "saved";
-      console.log("[cronista] Load OK:", filename, `(${content.length} chars)`);
+      console.log("[cron-insta] Load OK:", filename, `(${content.length} chars)`);
     } catch (e) {
-      console.error("[cronista] Failed to load chapter:", e);
+      console.error("[cron-insta] Failed to load chapter:", e);
     }
   }
 
@@ -481,9 +481,9 @@
       const raw = await cargarIndice(projectPath);
       const meta = JSON.parse(raw);
       chapters = meta.chapters_order ?? [];
-      console.log("[cronista] Chapters refreshed:", chapters);
+      console.log("[cron-insta] Chapters refreshed:", chapters);
     } catch (e) {
-      console.error("[cronista] Failed to read project index:", e);
+      console.error("[cron-insta] Failed to read project index:", e);
     }
   }
 
@@ -500,7 +500,7 @@
         }
         await refreshChapters();
       } catch (e) {
-        console.error("[cronista] Delete chapter failed:", e);
+        console.error("[cron-insta] Delete chapter failed:", e);
         alert(`${t("chapters.deleteError")} ${e}`);
       }
       pendingDelete = null;
@@ -527,7 +527,7 @@
       await crearNota(projectPath, id, title.trim(), text);
       await refreshNotas();
     } catch (e) {
-      console.error("[cronista] Save note from context failed:", e);
+      console.error("[cron-insta] Save note from context failed:", e);
       alert(`${t("notes.createError")} ${e}`);
     }
   }
@@ -573,7 +573,7 @@
       await refreshPersonajes();
       showToast(t("context.traitSaved").replace("{name}", found.name), "warning", undefined, CheckCircle);
     } catch (e) {
-      console.error("[cronista] Save trait from context failed:", e);
+      console.error("[cron-insta] Save trait from context failed:", e);
       alert(`${t("characters.saveError")} ${e}`);
     }
   }
@@ -605,7 +605,7 @@
       // Optionally switch to the new chapter
       await cargarCapituloActual(sanitized);
     } catch (e) {
-      console.error("[cronista] New chapter from context failed:", e);
+      console.error("[cron-insta] New chapter from context failed:", e);
       alert(`${t("chapters.createError")} ${e}`);
     }
   }
@@ -630,7 +630,7 @@
       await agregarEventoTimeline(projectPath, JSON.stringify(evento));
       await refreshTimeline();
     } catch (e) {
-      console.error("[cronista] Add event from context failed:", e);
+      console.error("[cron-insta] Add event from context failed:", e);
       alert(`${t("timeline.addError")} ${e}`);
     }
   }
@@ -722,21 +722,21 @@
         }
       }
 
-      console.log("[cronista] Creating project:", { path, name });
+      console.log("[cron-insta] Creating project:", { path, name });
       try {
         const msg = await crearProyecto(path, name.trim(), fontFamily);
-        console.log("[cronista] Project created:", msg);
+        console.log("[cron-insta] Project created:", msg);
         projectPath = path;
         setActiveProject(path);
-        marcarProyectoCronista(path); // fire-and-forget: set folder icon
+        marcarProyectoCronInsta(path); // fire-and-forget: set folder icon
 
         // If remote was configured, set it up
         if (remoteConfigured && remoteUrl) {
           try {
             await configurarRemoto(path, remoteUrl);
-            console.log("[cronista] Remote configured:", remoteUrl);
+            console.log("[cron-insta] Remote configured:", remoteUrl);
           } catch (e) {
-            console.error("[cronista] Remote config failed:", e);
+            console.error("[cron-insta] Remote config failed:", e);
             const msg = String(e);
             if (msg.startsWith("REPO_NOT_FOUND:")) {
               const repoName = extractRepoName(remoteUrl);
@@ -767,7 +767,7 @@
         await actualizarGitStatus(path);
         await refreshChapters();
       } catch (e) {
-        console.error("[cronista] Failed to create project:", e);
+        console.error("[cron-insta] Failed to create project:", e);
         alert(`${t("dialog.createProjectError")} ${e}`);
         return;
       }
@@ -783,17 +783,17 @@
       .trim() || t("chapters.untitled");
     const initialHTML = `<h1>${titulo}</h1><p></p>`;
 
-    console.log("[cronista] Creating chapter:", filename);
+    console.log("[cron-insta] Creating chapter:", filename);
     try {
       const msg = await crearCapitulo(projectPath, filename, initialHTML);
-      console.log("[cronista] Chapter created:", msg);
+      console.log("[cron-insta] Chapter created:", msg);
       activeChapter = filename;
       editorRef?.setContent(initialHTML);
       editorContent = initialHTML;
       saveStatus = "saved";
       await refreshChapters();
     } catch (e) {
-      console.error("[cronista] Create chapter failed:", e);
+      console.error("[cron-insta] Create chapter failed:", e);
       alert(`${t("chapters.createError")} ${e}`);
     }
   }
@@ -815,7 +815,7 @@
     if (!selected) return;
 
     const path = selected as string;
-    console.log("[cronista] Opening project:", path);
+    console.log("[cron-insta] Opening project:", path);
     try {
       // Verify it's a valid project by reading the index
       const raw = await cargarIndice(path);
@@ -825,11 +825,11 @@
       fontFamily = meta.font_family || "monospace";
       await actualizarGitStatus(path);
       chapters = meta.chapters_order ?? [];
-      console.log("[cronista] Project opened:", meta.project_name, chapters);
+      console.log("[cron-insta] Project opened:", meta.project_name, chapters);
 
       // Warn if git is unavailable
       if (gitStatus === "unavailable") {
-        console.warn("[cronista] Git not detected — automatic version control disabled");
+        console.warn("[cron-insta] Git not detected — automatic version control disabled");
         alert(t("git.notInstalled") + "\n\n" + t("git.notInstalledDesc"));
       }
 
@@ -838,7 +838,7 @@
         await cargarCapituloActual(chapters[0]);
       }
     } catch (e) {
-      console.error("[cronista] Failed to open project:", e);
+      console.error("[cron-insta] Failed to open project:", e);
       alert(t("dialog.openProjectError") + `\n\n${e}`);
     }
   }
@@ -846,7 +846,7 @@
   /** Close current project and start the new-project setup flow. */
   async function nuevoProyectoHandler(): Promise<void> {
     if (projectPath) await cerrarProyecto();
-    localStorage.removeItem("cronista-last-project");
+    localStorage.removeItem("cron-insta-last-project");
     crearCapituloNuevo();
   }
   async function cerrarProyecto(): Promise<void> {
@@ -883,7 +883,7 @@
     // (deliberately NOT removing from localStorage)
   }
 
-  /** Import a Cronista project from a .zip file. */
+  /** Import a Cron-Insta project from a .zip file. */
   async function importarProyectoHandler(): Promise<void> {
     if (projectPath) await cerrarProyecto();
 
@@ -912,7 +912,7 @@
     // Step 3: Extract
     try {
       const importedPath = await importarProyecto(zipPath, destDir);
-      console.log("[cronista] Project imported to:", importedPath);
+      console.log("[cron-insta] Project imported to:", importedPath);
 
       // Step 4: Handle Git history
       try {
@@ -939,10 +939,10 @@
       if (chapters.length > 0) {
         await cargarCapituloActual(chapters[0]);
       }
-      console.log("[cronista] Imported project opened:", meta.project_name, chapters);
+      console.log("[cron-insta] Imported project opened:", meta.project_name, chapters);
       showToast(t("import.success"), "warning", undefined, CheckCircle);
     } catch (e) {
-      console.error("[cronista] Import failed:", e);
+      console.error("[cron-insta] Import failed:", e);
       alert(t("import.error") + "\n\n" + String(e));
     }
   }
@@ -990,7 +990,7 @@
       gitLogEntries = await obtenerGitLog(projectPath, 5);
       gitLogVisible = true;
     } catch (e) {
-      console.error("[cronista] Failed to load git log:", e);
+      console.error("[cron-insta] Failed to load git log:", e);
     }
   }
 
@@ -1005,7 +1005,7 @@
 
   /** Show the export modal. */
   function abrirExportModal(): void {
-    console.log("[cronista] Opening export modal");
+    console.log("[cron-insta] Opening export modal");
     exportModal = true;
   }
 
@@ -1017,7 +1017,7 @@
       const raw = await listarPersonajes(projectPath);
       personajes = JSON.parse(raw);
     } catch (e) {
-      console.error("[cronista] Failed to list characters:", e);
+      console.error("[cron-insta] Failed to list characters:", e);
       personajes = [];
     }
   }
@@ -1049,7 +1049,7 @@
       personajeFormVisible = false;
       await refreshPersonajes();
     } catch (e) {
-      console.error("[cronista] Create character failed:", e);
+      console.error("[cron-insta] Create character failed:", e);
       alert(`${t("characters.createError")} ${e}`);
     }
   }
@@ -1067,7 +1067,7 @@
       personajeEditando = JSON.parse(raw);
       personajeExpandido = id;
     } catch (e) {
-      console.error("[cronista] Load character failed:", e);
+      console.error("[cron-insta] Load character failed:", e);
     }
   }
 
@@ -1083,7 +1083,7 @@
       personajeEditando = null;
       await refreshPersonajes();
     } catch (e) {
-      console.error("[cronista] Update character failed:", e);
+      console.error("[cron-insta] Update character failed:", e);
       alert(`${t("characters.saveError")} ${e}`);
     }
   }
@@ -1097,7 +1097,7 @@
       await refreshPersonajes();
       await refreshTimeline();
     } catch (e) {
-      console.error("[cronista] Delete character failed:", e);
+      console.error("[cron-insta] Delete character failed:", e);
       alert(`${t("characters.deleteError")} ${e}`);
     }
   }
@@ -1125,7 +1125,7 @@
       const raw = await listarNotas(projectPath);
       notas = JSON.parse(raw);
     } catch (e) {
-      console.error("[cronista] Failed to list notes:", e);
+      console.error("[cron-insta] Failed to list notes:", e);
       notas = [];
     }
   }
@@ -1144,7 +1144,7 @@
       await crearNota(projectPath, id, title.trim(), "<p></p>");
       await refreshNotas();
     } catch (e) {
-      console.error("[cronista] Create note failed:", e);
+      console.error("[cron-insta] Create note failed:", e);
       alert(`${t("notes.createError")} ${e}`);
     }
   }
@@ -1161,9 +1161,9 @@
       // Find title from index
       const found = notas.find((n) => n.id === id);
       if (found) notaTitulo = found.title;
-      console.log("[cronista] Note loaded:", id);
+      console.log("[cron-insta] Note loaded:", id);
     } catch (e) {
-      console.error("[cronista] Load note failed:", e);
+      console.error("[cron-insta] Load note failed:", e);
     }
   }
 
@@ -1175,7 +1175,7 @@
       saveStatus = "saved";
       await refreshNotas();
     } catch (e) {
-      console.error("[cronista] Save note failed:", e);
+      console.error("[cron-insta] Save note failed:", e);
       saveStatus = "unsaved";
     }
   }
@@ -1191,7 +1191,7 @@
       }
       await refreshNotas();
     } catch (e) {
-      console.error("[cronista] Delete note failed:", e);
+      console.error("[cron-insta] Delete note failed:", e);
       alert(`${t("notes.deleteError")} ${e}`);
     }
   }
@@ -1204,7 +1204,7 @@
       const raw = await cargarTimeline(projectPath);
       timeline = JSON.parse(raw);
     } catch (e) {
-      console.error("[cronista] Failed to load timeline:", e);
+      console.error("[cron-insta] Failed to load timeline:", e);
       timeline = [];
     }
   }
@@ -1253,7 +1253,7 @@
       cancelarEdicion();
       await refreshTimeline();
     } catch (e) {
-      console.error("[cronista] Save timeline event failed:", e);
+      console.error("[cron-insta] Save timeline event failed:", e);
       alert(`${t("timeline.addError")} ${e}`);
     }
   }
@@ -1264,7 +1264,7 @@
       await eliminarEventoTimeline(projectPath, id);
       await refreshTimeline();
     } catch (e) {
-      console.error("[cronista] Delete timeline event failed:", e);
+      console.error("[cron-insta] Delete timeline event failed:", e);
       alert(`${t("timeline.deleteError")} ${e}`);
     }
   }
@@ -1342,18 +1342,18 @@
   // ── Persist current project path ─────────────────────────────
   $effect(() => {
     if (projectPath) {
-      localStorage.setItem("cronista-last-project", projectPath);
+      localStorage.setItem("cron-insta-last-project", projectPath);
     }
   });
 
   // ── Auto-reopen last project on startup ──────────────────────
   let reopeningStatus = $state("");
   $effect(() => {
-    const lastPath = localStorage.getItem("cronista-last-project");
+    const lastPath = localStorage.getItem("cron-insta-last-project");
     if (!lastPath) return;
 
     reopeningStatus = t("setup.reopening");
-    console.log("[cronista] Trying to reopen last project:", lastPath);
+    console.log("[cron-insta] Trying to reopen last project:", lastPath);
 
     cargarIndice(lastPath)
       .then(async (raw) => {
@@ -1363,15 +1363,15 @@
         fontFamily = meta.font_family || "monospace";
         await actualizarGitStatus(lastPath);
         chapters = meta.chapters_order ?? [];
-        console.log("[cronista] Project reopened:", meta.project_name, chapters);
+        console.log("[cron-insta] Project reopened:", meta.project_name, chapters);
 
         if (chapters.length > 0) {
           return cargarCapituloActual(chapters[0]);
         }
       })
       .catch((e) => {
-        console.error("[cronista] Failed to reopen last project:", e);
-        localStorage.removeItem("cronista-last-project");
+        console.error("[cron-insta] Failed to reopen last project:", e);
+        localStorage.removeItem("cron-insta-last-project");
       })
       .finally(() => {
         reopeningStatus = "";
@@ -1458,7 +1458,7 @@
     if (e.ctrlKey && e.shiftKey && e.key === "N") {
       e.preventDefault();
       cerrarProyecto().then(() => {
-        localStorage.removeItem("cronista-last-project");
+        localStorage.removeItem("cron-insta-last-project");
         crearCapituloNuevo();
       });
       return;
@@ -1493,7 +1493,7 @@
     if (e.ctrlKey && !e.shiftKey && (e.key === "=" || e.key === "+")) {
       e.preventDefault();
       zoomLevel = Math.min(2, zoomLevel + 1);
-      localStorage.setItem("cronista-zoom", String(zoomLevel));
+      localStorage.setItem("cron-insta-zoom", String(zoomLevel));
       return;
     }
 
@@ -1501,7 +1501,7 @@
     if (e.ctrlKey && !e.shiftKey && e.key === "-") {
       e.preventDefault();
       zoomLevel = Math.max(0, zoomLevel - 1);
-      localStorage.setItem("cronista-zoom", String(zoomLevel));
+      localStorage.setItem("cron-insta-zoom", String(zoomLevel));
       return;
     }
 
@@ -2129,7 +2129,7 @@
             </button>
             <span class="footer-sep"></span>
             <button class="footer-btn" onclick={async () => {
-              console.log("[cronista] Export button clicked");
+              console.log("[cron-insta] Export button clicked");
               try {
                 const result = await exportarProyectoZip(projectPath);
                 alert(t("export.zipSuccess") + "\n" + result);
@@ -2206,7 +2206,7 @@
                       }
                       await actualizarGitStatus(projectPath);
                     } catch (e) {
-                      console.error("[cronista] Git init failed:", e);
+                      console.error("[cron-insta] Git init failed:", e);
                       const msg = String(e);
                       if (msg.startsWith("REPO_NOT_FOUND:")) {
                         const repoName = initRemoteUrl ? extractRepoName(initRemoteUrl) : null;
@@ -2402,7 +2402,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="help-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
       <div class="help-header">
-        <h2>Cronista</h2>
+        <h2>Cron-Insta</h2>
         <span class="help-version">v{APP_VERSION}</span>
         <button class="help-close" onclick={() => (helpMode = false)} title={t("common.cancel")}><X size={16} weight="light" color="currentColor" /></button>
       </div>
@@ -2766,7 +2766,7 @@
     <div class="closing-panel">
       <div class="closing-spinner"></div>
       <p class="closing-message">{closeStep}</p>
-      <p class="closing-sub">Cronista v{APP_VERSION}</p>
+      <p class="closing-sub">Cron-Insta v{APP_VERSION}</p>
     </div>
   </div>
 {/if}

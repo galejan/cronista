@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the backend file system operations for Cronista literary projects. Covers project folder scaffolding, chapter file persistence (Nivel 1 — disk save only), chapter file reading, chapter creation with metadata registration, and metadata index reading. All operations run as Tauri Rust commands with structured error handling.
+Defines the backend file system operations for Cron-Insta literary projects. Covers project folder scaffolding, chapter file persistence (Nivel 1 — disk save only), chapter file reading, chapter creation with metadata registration, and metadata index reading. All operations run as Tauri Rust commands with structured error handling.
 
 ## Requirements
 

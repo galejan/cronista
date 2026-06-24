@@ -1,5 +1,5 @@
 /**
- * Cronista i18n — lightweight Spanish/English translation system.
+ * Cron-Insta i18n — lightweight Spanish/English translation system.
  *
  * Uses Svelte 5 $state runes for reactivity.
  * In templates, t("key") is reactive because it reads the $state lang.
@@ -16,7 +16,7 @@ export type Lang = "es" | "en";
 /** Reactive language state. Mutate .current to trigger re-renders. */
 export const lang = $state<{ current: Lang }>({
   current: (typeof localStorage !== "undefined"
-    ? (localStorage.getItem("cronista-lang") as Lang | null)
+    ? (localStorage.getItem("cron-insta-lang") as Lang | null)
     : null) ?? "es",
 });
 
@@ -29,7 +29,7 @@ export function t(key: string): string {
 export function setLang(l: Lang): void {
   lang.current = l;
   if (typeof localStorage !== "undefined") {
-    localStorage.setItem("cronista-lang", l);
+    localStorage.setItem("cron-insta-lang", l);
   }
 }
 
@@ -75,7 +75,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "git.initModalTitle": "Inicializar control de versiones",
     "git.initModalDesc":
-      "Los datos que se indican a continuación se guardan únicamente en la configuración local del proyecto y nunca son compartidos por Cronista.",
+      "Los datos que se indican a continuación se guardan únicamente en la configuración local del proyecto y nunca son compartidos por Cron-Insta.",
     "git.initModalName": "Nombre para los commits:",
     "git.initModalEmail": "Correo electrónico:",
     "git.initButton": "Inicializar repositorio",
@@ -85,10 +85,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "git.helpTitle": "Control de versiones con Git",
     "git.helpWhy": "¿Por qué usar versionado?",
     "git.helpWhyDesc":
-      "Cada vez que guardás, Cronista crea un punto de control (commit) automático. Esto te permite volver atrás en el tiempo, recuperar versiones anteriores de tu texto y tener un historial completo de tu proceso creativo. Como máquina del tiempo para tu novela.",
+      "Cada vez que guardás, Cron-Insta crea un punto de control (commit) automático. Esto te permite volver atrás en el tiempo, recuperar versiones anteriores de tu texto y tener un historial completo de tu proceso creativo. Como máquina del tiempo para tu novela.",
     "git.helpInstall": "Instalar Git",
     "git.helpInstallDesc":
-      "Git es gratuito y está disponible para Windows, macOS y Linux. Instalalo desde <a href='https://git-scm.com/downloads'>git-scm.com</a>. Una vez instalado, reiniciá Cronista y volvé a abrir tu proyecto.",
+      "Git es gratuito y está disponible para Windows, macOS y Linux. Instalalo desde <a href='https://git-scm.com/downloads'>git-scm.com</a>. Una vez instalado, reiniciá Cron-Insta y volvé a abrir tu proyecto.",
     "git.helpClose": "Entendido",
     "git.viewSessions": "Ver últimas sesiones",
     "git.sessionsTitle": "Últimas sesiones",
@@ -203,7 +203,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "chapterNav.newChapter": "Nuevo capítulo",
 
     // ── Help panel ─────────────────────────────────────────
-    "help.ariaLabel": "Ayuda de Cronista",
+    "help.ariaLabel": "Ayuda de Cron-Insta",
     "help.createdBy": "creado por",
     "help.editorTitle": "Editor",
     "help.editorDesc":
@@ -222,7 +222,7 @@ const translations: Record<Lang, Record<string, string>> = {
       "Línea temporal al final del panel lateral. Añadí eventos con fecha, descripción y vinculalos a personajes y capítulos.",
     "help.versioningTitle": "Versionado",
     "help.versioningDesc":
-      "Cronista usa Git para mantener un historial de cambios. Al cerrar la aplicación se crea un checkpoint automático. El indicador en el panel lateral muestra el estado: verde (activo), naranja (sin inicializar), rojo (Git no instalado). La identidad Git y el repositorio remoto pueden editarse desde ⚙️ Configuración.",
+      "Cron-Insta usa Git para mantener un historial de cambios. Al cerrar la aplicación se crea un checkpoint automático. El indicador en el panel lateral muestra el estado: verde (activo), naranja (sin inicializar), rojo (Git no instalado). La identidad Git y el repositorio remoto pueden editarse desde ⚙️ Configuración.",
     "help.settingsTitle": "Configuración",
     "help.settingsDesc":
       "El botón ⚙️ del panel de herramientas abre la configuración del proyecto. Desde ahí podés cambiar la tipografía, la identidad Git y la URL del repositorio remoto en cualquier momento, sin necesidad de crear un proyecto nuevo.",
@@ -299,7 +299,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "git.remoteTitle": "Sincronización remota",
     "git.remoteCheckbox": "Quiero sincronizar con un repositorio remoto",
     "git.remoteUrlLabel": "URL del repositorio (SSH)",
-    "git.remoteInfoBox": "Para usar sincronización remota necesitás:\n1) Crear el repositorio en GitHub, GitLab o Bitbucket.\n2) Configurar una clave SSH en tu sistema.\nCronista solo admite conexiones SSH.",
+    "git.remoteInfoBox": "Para usar sincronización remota necesitás:\n1) Crear el repositorio en GitHub, GitLab o Bitbucket.\n2) Configurar una clave SSH en tu sistema.\nCron-Insta solo admite conexiones SSH.",
     "git.remoteSkip": "Saltar",
     "git.remoteFinish": "Finalizar",
     "git.remoteRejectedHttps": "Solo se admiten URLs SSH. Las URLs HTTPS no son compatibles.",
@@ -400,7 +400,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "git.initModalTitle": "Initialize version control",
     "git.initModalDesc":
-      "The name and email below are stored only in the local project configuration and are never shared by Cronista.",
+      "The name and email below are stored only in the local project configuration and are never shared by Cron-Insta.",
     "git.initModalName": "Name for commits:",
     "git.initModalEmail": "Email:",
     "git.initButton": "Initialize repository",
@@ -410,10 +410,10 @@ const translations: Record<Lang, Record<string, string>> = {
     "git.helpTitle": "Version control with Git",
     "git.helpWhy": "Why use version control?",
     "git.helpWhyDesc":
-      "Every time you save, Cronista creates an automatic checkpoint (commit). This lets you travel back in time, recover previous versions of your text, and keep a complete history of your creative process. Like a time machine for your novel.",
+      "Every time you save, Cron-Insta creates an automatic checkpoint (commit). This lets you travel back in time, recover previous versions of your text, and keep a complete history of your creative process. Like a time machine for your novel.",
     "git.helpInstall": "Install Git",
     "git.helpInstallDesc":
-      "Git is free and available for Windows, macOS, and Linux. Install it from <a href='https://git-scm.com/downloads'>git-scm.com</a>. Once installed, restart Cronista and reopen your project.",
+      "Git is free and available for Windows, macOS, and Linux. Install it from <a href='https://git-scm.com/downloads'>git-scm.com</a>. Once installed, restart Cron-Insta and reopen your project.",
     "git.helpClose": "Got it",
     "git.viewSessions": "View recent sessions",
     "git.sessionsTitle": "Recent sessions",
@@ -527,7 +527,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "chapterNav.newChapter": "New chapter",
 
     // ── Help panel ─────────────────────────────────────────
-    "help.ariaLabel": "Cronista Help",
+    "help.ariaLabel": "Cron-Insta Help",
     "help.createdBy": "created by",
     "help.editorTitle": "Editor",
     "help.editorDesc":
@@ -546,7 +546,7 @@ const translations: Record<Lang, Record<string, string>> = {
       "Timeline at the bottom of the sidebar. Add events with date, description, and link them to characters and chapters.",
     "help.versioningTitle": "Versioning",
     "help.versioningDesc":
-      "Cronista uses Git to keep a change history. An automatic checkpoint is created when closing the app. The indicator in the sidebar shows status: green (active), orange (not initialized), red (Git not installed). Git identity and remote repo can be edited from ⚙️ Settings.",
+      "Cron-Insta uses Git to keep a change history. An automatic checkpoint is created when closing the app. The indicator in the sidebar shows status: green (active), orange (not initialized), red (Git not installed). Git identity and remote repo can be edited from ⚙️ Settings.",
     "help.settingsTitle": "Settings",
     "help.settingsDesc":
       "The ⚙️ button in the tools panel opens the project settings. From there you can change the font, Git identity, and remote repository URL at any time — no need to create a new project.",
@@ -623,7 +623,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "git.remoteTitle": "Remote Sync",
     "git.remoteCheckbox": "I want to sync with a remote repository",
     "git.remoteUrlLabel": "Repository URL (SSH)",
-    "git.remoteInfoBox": "To use remote sync you need:\n1) Create the repository on GitHub, GitLab, or Bitbucket.\n2) Configure an SSH key on your system.\nCronista only supports SSH connections.",
+    "git.remoteInfoBox": "To use remote sync you need:\n1) Create the repository on GitHub, GitLab, or Bitbucket.\n2) Configure an SSH key on your system.\nCron-Insta only supports SSH connections.",
     "git.remoteSkip": "Skip",
     "git.remoteFinish": "Finish",
     "git.remoteRejectedHttps": "Only SSH URLs are supported. HTTPS URLs are not compatible.",

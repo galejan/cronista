@@ -42,13 +42,13 @@ jobs:
       - name: Upload .deb
         uses: actions/upload-artifact@v5
         with:
-          name: cronista-${{ steps.version.outputs.VERSION }}-linux-deb
+          name: cron-insta-${{ steps.version.outputs.VERSION }}-linux-deb
           path: src-tauri/target/release/bundle/deb/*.deb
 
       - name: Upload .rpm
         uses: actions/upload-artifact@v5
         with:
-          name: cronista-${{ steps.version.outputs.VERSION }}-linux-rpm
+          name: cron-insta-${{ steps.version.outputs.VERSION }}-linux-rpm
           path: src-tauri/target/release/bundle/rpm/*.rpm
 
   build-windows:
@@ -83,12 +83,12 @@ jobs:
       - name: Upload MSI installer
         uses: actions/upload-artifact@v5
         with:
-          name: cronista-${{ steps.version.outputs.VERSION }}-windows-msi
+          name: cron-insta-${{ steps.version.outputs.VERSION }}-windows-msi
           path: src-tauri/target/release/bundle/msi/*.msi
 
       - name: Upload NSIS installer
         uses: actions/upload-artifact@v5
         with:
-          name: cronista-${{ steps.version.outputs.VERSION }}-windows-nsis
+          name: cron-insta-${{ steps.version.outputs.VERSION }}-windows-nsis
           path: src-tauri/target/release/bundle/nsis/*.exe
 

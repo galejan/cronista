@@ -1,6 +1,6 @@
-# Cronista · Editor literario Local-First
+# Cron-Insta · Editor literario Local-First
 
-**Cronista** es un editor de texto enriquecido diseñado para escribir novelas largas. Combina una zona de escritura libre de distracciones con un panel lateral que integra capítulos, fichas de personajes, notas y una línea de tiempo. Todo se guarda en local: archivos Markdown y JSON dentro de una carpeta de proyecto, sin depender de la nube.
+**Cron-Insta** es un editor de texto enriquecido diseñado para escribir novelas largas. Combina una zona de escritura libre de distracciones con un panel lateral que integra capítulos, fichas de personajes, notas y una línea de tiempo. Todo se guarda en local: archivos Markdown y JSON dentro de una carpeta de proyecto, sin depender de la nube.
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## Control de versiones con Git
 
-Cronista integra Git de forma transparente para proteger el trabajo. **No es obligatorio**, pero sí muy recomendable.
+Cron-Insta integra Git de forma transparente para proteger el trabajo. **No es obligatorio**, pero sí muy recomendable.
 
 ### ¿Qué hace?
 
@@ -33,7 +33,7 @@ Los checkpoints son acumulativos: con el tiempo construyen un historial completo
 
 ### ¿Qué pasa si no se tiene Git instalado?
 
-La aplicación funciona sin Git. Lo único que se pierde es el historial de versiones. Al crear un proyecto, Cronista avisa si no encuentra Git y permite continuar sin él. También se puede instalar Git más adelante y el historial comenzará desde ese momento.
+La aplicación funciona sin Git. Lo único que se pierde es el historial de versiones. Al crear un proyecto, Cron-Insta avisa si no encuentra Git y permite continuar sin él. También se puede instalar Git más adelante y el historial comenzará desde ese momento.
 
 ### Instalación de Git
 
@@ -50,9 +50,9 @@ Dentro de la aplicación, el indicador `→` en el panel inferior abre una venta
 
 ### Sincronización remota (SSH)
 
-Cronista permite sincronizar proyectos con un repositorio remoto (GitHub, GitLab, Bitbucket) mediante SSH. Esto permite continuar el trabajo desde otro equipo sin perder el historial.
+Cron-Insta permite sincronizar proyectos con un repositorio remoto (GitHub, GitLab, Bitbucket) mediante SSH. Esto permite continuar el trabajo desde otro equipo sin perder el historial.
 
-Al crear un proyecto, o desde el panel de herramientas (⚙️ **Configuración**), se puede establecer o cambiar la URL SSH. Cronista:
+Al crear un proyecto, o desde el panel de herramientas (⚙️ **Configuración**), se puede establecer o cambiar la URL SSH. Cron-Insta:
 
 - Detecta si el repositorio remoto no existe y ofrece crearlo en GitHub.
 - Detecta si el remoto ya tiene historial previo (de otra máquina) y ofrece sincronizar ambos historiales de forma segura.
@@ -78,7 +78,7 @@ Los cambios se guardan individualmente por pestaña. Si se cierra el diálogo si
 
 ## Exportación y uso compartido
 
-Cronista ofrece dos formatos de exportación, accesibles desde los botones de la barra inferior.
+Cron-Insta ofrece dos formatos de exportación, accesibles desde los botones de la barra inferior.
 
 | Botón | Formato | Contenido |
 |-------|---------|-----------|
@@ -93,13 +93,13 @@ El archivo generado incluye los capítulos en orden, separados por el título de
 
 ### Importar un proyecto
 
-Cronista permite importar un proyecto desde un archivo `.zip` (generado con la función Exportar). Esto permite compartir proyectos entre usuarios o migrar el trabajo a otro equipo.
+Cron-Insta permite importar un proyecto desde un archivo `.zip` (generado con la función Exportar). Esto permite compartir proyectos entre usuarios o migrar el trabajo a otro equipo.
 
 El botón **📥 Importar** (`Ctrl+I`) está disponible en la barra de herramientas y en la pantalla de inicio. El flujo es:
 
 1. Seleccionar el archivo `.zip` del proyecto.
 2. Elegir la carpeta de destino (por defecto en Documentos).
-3. Cronista extrae el contenido y verifica que sea un proyecto válido.
+3. Cron-Insta extrae el contenido y verifica que sea un proyecto válido.
 4. Si el proyecto incluye historial de Git, pregunta si se quiere **conservar** el historial del autor original o **empezar uno limpio** desde el momento de la importación.
 
 Si hay problemas de permisos al escribir en la carpeta de destino, se muestra un mensaje específico.
@@ -118,8 +118,8 @@ Si hay problemas de permisos al escribir en la carpeta de destino, se muestra un
 ### Desarrollo
 
 ```bash
-git clone git@github.com:galejan/cronista.git
-cd cronista
+git clone git@github.com:galejan/cron-insta.git
+cd cron-insta
 pnpm install
 pnpm tauri dev
 ```
@@ -130,14 +130,14 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
-El binario se genera en `src-tauri/target/release/`. En Arch Linux se puede ejecutar directamente (`./cronista`) o crear un archivo `.desktop` a mano.
+El binario se genera en `src-tauri/target/release/`. En Arch Linux se puede ejecutar directamente (`./cron-insta`) o crear un archivo `.desktop` a mano.
 
 ---
 
 ## Estructura del proyecto
 
 ```
-cronista/
+cron-insta/
 ├── src/                  # Frontend SvelteKit
 │   ├── lib/
 │   │   ├── components/   # Editor.svelte (TipTap wrapper)
@@ -157,7 +157,7 @@ cronista/
 
 ### Estructura de un proyecto de escritura
 
-Cada proyecto creado con Cronista es una carpeta en el disco con esta organización:
+Cada proyecto creado con Cron-Insta es una carpeta en el disco con esta organización:
 
 ```
 Mi Novela/
@@ -216,7 +216,7 @@ Mi Novela/
 
 El backend Rust expone los siguientes comandos Tauri:
 
-- **Proyecto**: `crear_proyecto`, `set_active_project`, `marcar_proyecto_cronista`
+- **Proyecto**: `crear_proyecto`, `set_active_project`, `marcar_proyecto_cron_insta`
 - **Git**: `detectar_git`, `inicializar_git`, `inicializar_git_con_autor`, `crear_checkpoint`, `verificar_git_inicializado`, `obtener_git_log`, `configurar_remoto`, `sincronizar_remoto`, `reintentar_push`
 - **Capítulos**: `guardar_capitulo`, `cargar_capitulo`, `crear_capitulo`, `eliminar_capitulo`, `cargar_indice`
 - **Personajes**: `listar_personajes`, `crear_personaje`, `cargar_personaje`, `actualizar_personaje`, `eliminar_personaje`
@@ -228,4 +228,4 @@ El backend Rust expone los siguientes comandos Tauri:
 
 ## Licencia
 
-MIT © 2026 — [github.com/galejan/cronista](https://github.com/galejan/cronista)
+MIT © 2026 — [github.com/galejan/cron-insta](https://github.com/galejan/cron-insta)

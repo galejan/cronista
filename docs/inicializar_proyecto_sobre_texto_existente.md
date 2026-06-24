@@ -1,6 +1,6 @@
 ---
 name: inicializar-proyecto-sobre-texto-existente
-description: "Trigger: inicializar proyecto, crear proyecto desde texto, poblar cronista, importar cuento, importar novela, convertir texto a proyecto cronista. Crea un proyecto Cronista completo y autónomo a partir de un texto literario existente, sin depender del código fuente de Cronista."
+description: "Trigger: inicializar proyecto, crear proyecto desde texto, poblar cron-insta, importar cuento, importar novela, convertir texto a proyecto cron-insta. Crea un proyecto Cron-Insta completo y autónomo a partir de un texto literario existente, sin depender del código fuente de Cron-Insta."
 license: Apache-2.0
 metadata:
   author: "galejan"
@@ -9,20 +9,20 @@ metadata:
   dependencies: []
 ---
 
-# Skill: Inicializar Proyecto Cronista desde Texto Existente
+# Skill: Inicializar Proyecto Cron-Insta desde Texto Existente
 
-> **Standalone** — no require el repo de Cronista. Cualquier agente AI con acceso a sistema de archivos puede ejecutarla.
+> **Standalone** — no require el repo de Cron-Insta. Cualquier agente AI con acceso a sistema de archivos puede ejecutarla.
 
 ## Activation Contract
 
-Activar cuando el usuario pide importar un texto literario existente (cuento, novela, relato) como proyecto Cronista. El objetivo es crear la estructura completa del proyecto en disco, analizar el texto, y poblarlo con capítulos, personajes, timeline y notas — sin necesidad de tener el código fuente de Cronista instalado.
+Activar cuando el usuario pide importar un texto literario existente (cuento, novela, relato) como proyecto Cron-Insta. El objetivo es crear la estructura completa del proyecto en disco, analizar el texto, y poblarlo con capítulos, personajes, timeline y notas — sin necesidad de tener el código fuente de Cron-Insta instalado.
 
 ## Hard Rules
 
 1. **NO modificar el texto literario original.** El texto del autor se preserva intacto. Solo se organiza, estructura y cataloga.
-2. **Estructura de directorios idéntica a Cronista.** El proyecto debe ser 100% compatible con la app Cronista.
+2. **Estructura de directorios idéntica a Cron-Insta.** El proyecto debe ser 100% compatible con la app Cron-Insta.
 3. **Codificación UTF-8 en todos los archivos.**
-4. **Respetar el formato exacto de los archivos JSON y MD.** La app Cronista los parsea con schemas específicos.
+4. **Respetar el formato exacto de los archivos JSON y MD.** La app Cron-Insta los parsea con schemas específicos.
 5. **Los archivos de capítulos usan HTML** (TipTap/ProseMirror output), no Markdown puro.
 6. **Mantener nivel de análisis literario**, no técnico.
 
@@ -33,11 +33,11 @@ Activar cuando el usuario pide importar un texto literario existente (cuento, no
 Antes de empezar, verificar:
 
 - [ ] El texto literario existe y se puede leer
-- [ ] El directorio de destino NO contiene ya un proyecto Cronista (tiene `.config/metadata.json`)
+- [ ] El directorio de destino NO contiene ya un proyecto Cron-Insta (tiene `.config/metadata.json`)
 - [ ] Git está disponible (`git --version`) — opcional, pero recomendado
 - [ ] Hay espacio en disco suficiente (un texto típico pesa < 10 MB)
 
-Si el directorio destino YA es un proyecto Cronista, preguntar si quiere sobrescribir o continuar. Nunca destruir datos sin confirmación.
+Si el directorio destino YA es un proyecto Cron-Insta, preguntar si quiere sobrescribir o continuar. Nunca destruir datos sin confirmación.
 
 ### Fase 1: Lectura y Análisis del Texto
 
@@ -282,7 +282,7 @@ Al finalizar, presentar:
 1. **Resumen del proyecto creado**: ruta, nombre, cantidad de capítulos, personajes, eventos de timeline, notas
 2. **Decisiones de análisis**: por qué se dividió así, qué personajes se incluyeron, criterios usados
 3. **Estado de Git**: inicializado o no
-4. **Próximos pasos**: cómo abrir el proyecto en Cronista, qué mejorar
+4. **Próximos pasos**: cómo abrir el proyecto en Cron-Insta, qué mejorar
 
 ## Verificación
 
@@ -310,9 +310,9 @@ Ver `/home/alex/Documentos/Hammet/analisis-ejemplo-completo.md` para un ejemplo 
 - **Timeline**: 10 eventos (2 escalas temporales)
 - **Notas**: 3 (simbolismo, estructura circular, ser justo vs cumplir promesas, continuación)
 
-## Flujo Autónomo (sin Cronista)
+## Flujo Autónomo (sin Cron-Insta)
 
-Cuando un agente AI ejecuta esta skill sin tener acceso al código fuente de Cronista:
+Cuando un agente AI ejecuta esta skill sin tener acceso al código fuente de Cron-Insta:
 
 ```
 1. LEER texto literario (ruta proporcionada por el usuario)
@@ -323,8 +323,8 @@ Cuando un agente AI ejecuta esta skill sin tener acceso al código fuente de Cro
 6. VERIFICAR integridad del proyecto
 7. INFORMAR resultado
 
-El agente NO necesita importar nada de Cronista. Solo sigue estas
+El agente NO necesita importar nada de Cron-Insta. Solo sigue estas
 instrucciones y escribe archivos directamente en disco.
 ```
 
-El proyecto resultante es 100% compatible con la app Cronista: se puede abrir desde la interfaz "Abrir proyecto" seleccionando la carpeta raíz.
+El proyecto resultante es 100% compatible con la app Cron-Insta: se puede abrir desde la interfaz "Abrir proyecto" seleccionando la carpeta raíz.

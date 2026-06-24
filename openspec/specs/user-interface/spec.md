@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Cronista's visual icon system. All UI icons MUST use Phosphor Icons v3.1.0 (SVG, `weight="light" size={16} color="currentColor"`) instead of platform-dependent emoji/unicode. Import via direct path (`phosphor-svelte/lib/IconName`) for tree-shaking.
+Cron-Insta's visual icon system. All UI icons MUST use Phosphor Icons v3.1.0 (SVG, `weight="light" size={16} color="currentColor"`) instead of platform-dependent emoji/unicode. Import via direct path (`phosphor-svelte/lib/IconName`) for tree-shaking.
 
 ## Requirements
 

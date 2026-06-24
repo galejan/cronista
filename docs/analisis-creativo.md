@@ -11,7 +11,7 @@ metadata:
 
 ## Activation Contract
 
-Activar cuando el usuario pide analizar un cuento, relato o novela para poblarlo en Cronista. El foco es organización y análisis, NUNCA edición del texto original.
+Activar cuando el usuario pide analizar un cuento, relato o novela para poblarlo en Cron-Insta. El foco es organización y análisis, NUNCA edición del texto original.
 
 ## Hard Rules
 

@@ -1,4 +1,4 @@
-// Cronista — Tauri backend
+// Cron-Insta — Tauri backend
 //
 // Phase 2: Rust backend commands for project management and git abstraction.
 // All five Tauri commands + find_git() helper live here per the single-module design.
@@ -211,7 +211,7 @@ fn find_git() -> Result<String, String> {
 // Tauri commands
 // ---------------------------------------------------------------------------
 
-/// Create a new Cronista literary project.
+/// Create a new Cron-Insta literary project.
 ///
 /// Creates the base directory plus four subdirectories (`.config/`,
 /// `capitulos/`, `personajes/`, `notas/`), seeds `.config/metadata.json`
@@ -220,7 +220,7 @@ fn find_git() -> Result<String, String> {
 /// availability).
 ///
 /// The Git identity is read from the global config file; falls back to
-/// the default "Cronista" identity when no config exists.
+/// the default "Cron-Insta" identity when no config exists.
 #[tauri::command]
 fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_family: Option<String>) -> Result<String, String> {
     // Normalise trailing separators
@@ -264,16 +264,16 @@ fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_fami
 /// Copy the app icon into the project and set it as folder icon.
 ///
 /// Best-effort — never fails project creation.
-/// - **Linux**: copies 32x32.png as .cronista-icon.png, sets GVFS metadata.
-/// - **Windows**: copies icon.ico as .cronista-icon.ico, creates desktop.ini
+/// - **Linux**: copies 32x32.png as .cron-insta-icon.png, sets GVFS metadata.
+/// - **Windows**: copies icon.ico as .cron-insta-icon.ico, creates desktop.ini
 ///   and marks the folder with +s attribute so Explorer picks up the icon.
 #[tauri::command]
-fn marcar_proyecto_cronista(app: tauri::AppHandle, path: String) -> Result<(), String> {
+fn marcar_proyecto_cron_insta(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let base = Path::new(&path);
 
     #[cfg(target_os = "linux")]
     {
-        let icon_dest = base.join(".cronista-icon.png");
+        let icon_dest = base.join(".cron-insta-icon.png");
         if let Ok(resource_dir) = app.path().resource_dir() {
             let icon_src = resource_dir.join("icons/32x32.png");
             if icon_src.exists() {
@@ -295,7 +295,7 @@ fn marcar_proyecto_cronista(app: tauri::AppHandle, path: String) -> Result<(), S
 
     #[cfg(target_os = "windows")]
     {
-        let icon_dest = base.join(".cronista-icon.ico");
+        let icon_dest = base.join(".cron-insta-icon.ico");
         if let Ok(resource_dir) = app.path().resource_dir() {
             let icon_src = resource_dir.join("icons/icon.ico");
             if icon_src.exists() {
@@ -307,7 +307,7 @@ fn marcar_proyecto_cronista(app: tauri::AppHandle, path: String) -> Result<(), S
         let desktop_ini = base.join("desktop.ini");
         let ini_content = format!(
             "[.ShellClassInfo]\r\nIconFile={}\r\nIconIndex=0\r\n",
-            ".cronista-icon.ico"
+            ".cron-insta-icon.ico"
         );
         std::fs::write(&desktop_ini, ini_content)
             .map_err(|e| format!("Error writing desktop.ini: {}", e))?;
@@ -338,7 +338,7 @@ fn marcar_proyecto_cronista(app: tauri::AppHandle, path: String) -> Result<(), S
 /// callers can degrade gracefully.
 ///
 /// Reads the Git identity from the global config file. Falls back to
-/// the default "Cronista" / "cronista@local" identity when no config
+/// the default "Cron-Insta" / "cron-insta@local" identity when no config
 /// exists (backward-compatible behaviour).
 #[tauri::command]
 fn inicializar_git(app: tauri::AppHandle, path: String) -> Result<String, String> {
@@ -361,7 +361,7 @@ fn inicializar_git(app: tauri::AppHandle, path: String) -> Result<String, String
     if output.status.success() {
         // Read identity from global config, fall back to defaults
         let (user_name, user_email) = read_identity_from_config(&app)
-            .unwrap_or_else(|| ("Cronista".to_string(), "cronista@local".to_string()));
+            .unwrap_or_else(|| ("Cron-Insta".to_string(), "cron-insta@local".to_string()));
 
         // Set user identity (best-effort, silent on failure)
         let _ = system_command(&git_path)
@@ -1422,14 +1422,14 @@ fn eliminar_evento_timeline(proyecto_path: String, id: String) -> Result<String,
 
 /// Resolve the path to the global git identity/remote config file.
 ///
-/// Uses Tauri's platform-standard `app_config_dir()` under a `cronista/`
+/// Uses Tauri's platform-standard `app_config_dir()` under a `cron-insta/`
 /// subdirectory. Returns `None` when the platform cannot determine the
 /// config directory.
 fn get_config_path(app: &tauri::AppHandle) -> Option<PathBuf> {
     app.path()
         .app_config_dir()
         .ok()
-        .map(|p| p.join("cronista").join("git-config.json"))
+        .map(|p| p.join("cron-insta").join("git-config.json"))
 }
 
 /// Read the Git identity (name, email) from the global config file.
@@ -1771,10 +1771,10 @@ fn exportar_proyecto_md(proyecto_path: String) -> Result<String, String> {
     Ok(md_path.display().to_string())
 }
 
-/// Import a Cronista project from a .zip file.
+/// Import a Cron-Insta project from a .zip file.
 ///
 /// Extracts all contents into the chosen destination directory.
-/// A well-formed Cronista ZIP wraps files in a project folder;
+/// A well-formed Cron-Insta ZIP wraps files in a project folder;
 /// this function finds that folder by scanning for .config/metadata.json
 /// inside the first level of subdirectories.  Falls back to the
 /// destination root for legacy ZIPs without a wrapping folder.
@@ -1839,7 +1839,7 @@ fn importar_proyecto(zip_path: String, destino: String) -> Result<String, String
     }
 
     if !found {
-        return Err("El archivo ZIP no parece ser un proyecto de Cronista (falta .config/metadata.json).".to_string());
+        return Err("El archivo ZIP no parece ser un proyecto de Cron-Insta (falta .config/metadata.json).".to_string());
     }
 
     // Read project name for the success message
@@ -2322,7 +2322,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             crear_proyecto,
-            marcar_proyecto_cronista,
+            marcar_proyecto_cron_insta,
             inicializar_git,
             verificar_git_inicializado,
             eliminar_directorio_git,
@@ -2421,7 +2421,7 @@ mod tests {
     // Test helpers — avoid requiring tauri::AppHandle in unit tests
     // ========================================================================
 
-    /// Test-only: initialise a git repo with the default "Cronista" identity.
+    /// Test-only: initialise a git repo with the default "Cron-Insta" identity.
     /// Mirrors `inicializar_git` behaviour without needing an AppHandle.
     /// Production identity-reading is tested at the integration level.
     fn init_git_for_test(path_str: &str) -> Result<String, String> {
@@ -2439,13 +2439,13 @@ mod tests {
             let _ = system_command(&git_path)
                 .arg("config")
                 .arg("user.name")
-                .arg("Cronista")
+                .arg("Cron-Insta")
                 .current_dir(project_path)
                 .output();
             let _ = system_command(&git_path)
                 .arg("config")
                 .arg("user.email")
-                .arg("cronista@local")
+                .arg("cron-insta@local")
                 .current_dir(project_path)
                 .output();
             Ok("Repositorio Git inicializado correctamente.".to_string())
@@ -2708,12 +2708,12 @@ mod tests {
     #[test]
     fn test_crear_proyecto_permission_denied() {
         // /root/ is typically not writable by non-root users on Linux
-        let result = create_project_for_test("/root/cronista-blocked".to_string(), "Test".to_string(), None);
+        let result = create_project_for_test("/root/cron-insta-blocked".to_string(), "Test".to_string(), None);
         // On CI running as root, this could succeed; we just assert it doesn't panic
         match result {
             Ok(_) => {
                 // We're likely root — clean up if we created anything
-                let _ = std::fs::remove_dir_all("/root/cronista-blocked");
+                let _ = std::fs::remove_dir_all("/root/cron-insta-blocked");
                 // This is fine; the test just verified no panic
             }
             Err(e) => {
@@ -3898,7 +3898,7 @@ mod tests {
     #[test]
     fn test_identity_save_then_load() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         // Simulate guardar: write full config with identity
         let config = GitConfig {
@@ -3926,7 +3926,7 @@ mod tests {
     #[test]
     fn test_identity_corrupted_json() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         write_config(&config_path, "this is not valid json {{{");
 
@@ -3941,7 +3941,7 @@ mod tests {
     #[test]
     fn test_identity_missing_file() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         // File doesn't exist — should be treated as missing
         assert!(!config_path.exists());
@@ -3954,7 +3954,7 @@ mod tests {
     #[test]
     fn test_remote_config_save_then_load() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         let config = GitConfig {
             schema_version: 1,
@@ -3981,7 +3981,7 @@ mod tests {
     #[test]
     fn test_identity_save_preserves_remote() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         // Step 1: Write remote config first
         let config = GitConfig {
@@ -4020,7 +4020,7 @@ mod tests {
     #[test]
     fn test_remote_save_preserves_identity() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         // Step 1: Write identity first
         let config = GitConfig {
@@ -4059,7 +4059,7 @@ mod tests {
     #[test]
     fn test_identity_unicode_name() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         let config = GitConfig {
             schema_version: 1,
@@ -4217,7 +4217,7 @@ mod tests {
     #[test]
     fn test_config_write_read_strike_state() {
         let dir = TempDir::new().expect("failed to create temp dir");
-        let config_path = dir.path().join("cronista").join("git-config.json");
+        let config_path = dir.path().join("cron-insta").join("git-config.json");
 
         // Write config with 2 strikes, push still enabled
         let config = GitConfig {

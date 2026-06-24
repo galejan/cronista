@@ -1,10 +1,10 @@
 [Desktop Entry]
-Name=Cronista
+Name=Cron-Insta
 Comment=Editor literario Local-First
-Exec=/home/alex/Documentos/GitHub/cronista/cronista.sh
+Exec=/home/alex/Documentos/GitHub/cronista/cron-insta.sh
 Icon=/home/alex/Documentos/GitHub/cronista/static/favicon.png
 Terminal=false
 Type=Application
 Categories=Office;WordProcessor;
 Keywords=writing;novel;editor;markdown;
-StartupWMClass=cronista
+StartupWMClass=cron-insta

@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Manages the user's Git identity (name + email) as a global persistent config, shared across all Cronista projects. Replaces the previous hardcoded identity with a user-facing dialog on project creation, backed by language-aware literary presets.
+Manages the user's Git identity (name + email) as a global persistent config, shared across all Cron-Insta projects. Replaces the previous hardcoded identity with a user-facing dialog on project creation, backed by language-aware literary presets.
 
 ## Requirements
 
 ### Requirement: Global Identity Storage
 
-The system MUST store Git identity in the platform app config directory via Tauri's `app.path().app_config_dir()` at path `cronista/git-config.json`.
+The system MUST store Git identity in the platform app config directory via Tauri's `app.path().app_config_dir()` at path `cron-insta/git-config.json`.
 
 The config file SHALL include a `schema_version` field for forward compatibility.
 

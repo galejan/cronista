@@ -9,10 +9,10 @@ export async function crearProyecto(
 }
 
 /** Set the project folder icon (best-effort, gvfs). Call after crearProyecto. */
-export async function marcarProyectoCronista(
+export async function marcarProyectoCronInsta(
   path: string,
 ): Promise<void> {
-  return invoke("marcar_proyecto_cronista", { path });
+  return invoke("marcar_proyecto_cron_insta", { path });
 }
 
 export async function exportarProyectoZip(

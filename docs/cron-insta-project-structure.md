@@ -1,6 +1,6 @@
 ---
-name: cronista-project-structure
-description: "Trigger: understand the Cronista codebase, file layout, IPC architecture, data model, or how components and modules relate. Reference when delegating creative analysis, feature implementation, or architecture decisions to other skills."
+name: cron-insta-project-structure
+description: "Trigger: understand the Cron-Insta codebase, file layout, IPC architecture, data model, or how components and modules relate. Reference when delegating creative analysis, feature implementation, or architecture decisions to other skills."
 license: Apache-2.0
 metadata:
   author: "galejan"
@@ -8,7 +8,7 @@ metadata:
   depends: []
 ---
 
-# Cronista — Structure & Architecture
+# Cron-Insta — Structure & Architecture
 
 > Una app desktop local-first para escritores. Svelte 5 frontend + Tauri (Rust) backend, con Git versionado invisible.
 
@@ -27,9 +27,9 @@ metadata:
 ## Directory Map
 
 ```
-cronista/
+cron-insta/
 ├── src/                          # Frontend (Svelte 5 + TS)
-│   ├── app.html                  # HTML shell (lang="en", <title>Cronista</title>)
+│   ├── app.html                  # HTML shell (lang="en", <title>Cron-Insta</title>)
 │   ├── app.css                   # Global CSS — ProseMirror typography, dark mode
 │   ├── routes/
 │   │   ├── +layout.svelte        # Root layout: external link handler (Tauri)
@@ -46,7 +46,7 @@ cronista/
 │
 ├── src-tauri/                    # Backend (Rust)
 │   ├── src/
-│   │   ├── main.rs               # Entry: calls cronista_lib::run()
+│   │   ├── main.rs               # Entry: calls cron_insta_lib::run()
 │   │   └── lib.rs                # ALL backend logic (~2100 lines + tests)
 │   ├── Cargo.toml                # Dependencies: tauri, serde, chrono, zip, tokio
 │   ├── tauri.conf.json           # App config: window size, CSP, bundle, icons
@@ -158,7 +158,7 @@ struct TimelineEvent {
     relatedChapters: Vec<String>,   // chapter filenames
 }
 
-// Global config (per Tauri app_config_dir/cronista/git-config.json)
+// Global config (per Tauri app_config_dir/cron-insta/git-config.json)
 struct GitConfig {
     schema_version: u32,
     identity: Option<{name, email}>,
@@ -183,7 +183,7 @@ struct GitConfig {
 ### 3. Global Git Config (not per-project)
 **Decision**: Identity and remote config stored globally in Tauri's `app_config_dir()`.
 **Why**: Writer sets their identity once. Remote config is global so reconnecting works across projects.
-**Format**: `cronista/git-config.json` with `schema_version`, `identity`, `remote`.
+**Format**: `cron-insta/git-config.json` with `schema_version`, `identity`, `remote`.
 
 ### 4. SPA-Only, No SSR
 **Decision**: SvelteKit with `adapter-static` + `ssr = false` + `fallback: "index.html"`.
@@ -241,7 +241,7 @@ User types → Editor.onUpdate(html) → handleEditorUpdate() → saveStatus="un
 - **Reactivity**: `lang` is a `$state` object — `t("key")` is reactive in templates
 - **Keys**: Dot-notation, e.g. `"tabs.chapters"`, `"dialog.projectName"`
 - **Fallback**: Missing key → returns the key itself
-- **Storage**: `localStorage.setItem("cronista-lang", lang)`
+- **Storage**: `localStorage.setItem("cron-insta-lang", lang)`
 
 ## CI/CD (GitHub Actions)
 
@@ -282,11 +282,11 @@ Rust tests use `create_project_for_test()` and `init_git_for_test()` helpers tha
 
 ## Skill Integration Patterns
 
-When delegating work from creative analysis skills (like `analisis-creativo.md`) to Cronista operations:
+When delegating work from creative analysis skills (like `analisis-creativo.md`) to Cron-Insta operations:
 
 ```
 Skill de Análisis → produce Chapter splits, Character sheets, Timeline events, Notes
-  → Cronista backend: crearCapitulo(), crearPersonaje(), agregarEventoTimeline(), crearNota()
+  → Cron-Insta backend: crearCapitulo(), crearPersonaje(), agregarEventoTimeline(), crearNota()
   → All go through tauri.ts → Rust IPC → disk persistence
 ```
 

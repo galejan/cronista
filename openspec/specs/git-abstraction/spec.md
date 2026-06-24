@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the invisible Git version control layer for Cronista projects. Handles Git binary detection across platforms, silent repository initialization, checkpoint creation, and conditional auto-push to remote. Guarantees graceful degradation when Git is unavailable — the user is always informed, and disk save (Nivel 1) never fails due to missing Git.
+Defines the invisible Git version control layer for Cron-Insta projects. Handles Git binary detection across platforms, silent repository initialization, checkpoint creation, and conditional auto-push to remote. Guarantees graceful degradation when Git is unavailable — the user is always informed, and disk save (Nivel 1) never fails due to missing Git.
 
 ## Requirements
 

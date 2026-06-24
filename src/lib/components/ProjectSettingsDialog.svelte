@@ -168,7 +168,7 @@
   async function loadRemote() {
     remoteError = "";
     try {
-      const remote = await cargarConfigRemoto();
+      const remote = await cargarConfigRemoto(projectPath);
       if (remote && remote.url) {
         remoteUrl = remote.url;
       }
@@ -201,7 +201,7 @@
     remoteSuccess = false;
     try {
       await configurarRemoto(projectPath, remoteUrl.trim());
-      await guardarConfigRemoto(remoteUrl.trim(), true);
+      await guardarConfigRemoto(projectPath, remoteUrl.trim(), true);
       remoteSuccess = true;
     } catch (e) {
       remoteError = String(e);

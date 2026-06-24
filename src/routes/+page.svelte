@@ -38,6 +38,7 @@
     eliminarNota,
     eliminarPersonaje,
     guardarCapitulo,
+    guardarConfigRemoto,
     importarProyecto,
     inicializarGit,
     listarLugares,
@@ -791,6 +792,7 @@
         if (remoteConfigured && remoteUrl) {
           try {
             await configurarRemoto(path, remoteUrl);
+            await guardarConfigRemoto(path, remoteUrl, true);
             console.log("[cron-insta] Remote configured:", remoteUrl);
           } catch (e) {
             console.error("[cron-insta] Remote config failed:", e);
@@ -1022,7 +1024,7 @@
 
         // Check remote config for push-failure warning
         try {
-          const remote = await cargarConfigRemoto();
+          const remote = await cargarConfigRemoto(path);
           const wasDisabled = remoteWarningVisible;
           remoteWarningVisible = !!(remote && !remote.push_enabled && remote.url);
           // Show toast when push was just disabled
@@ -2421,6 +2423,7 @@
                       if (result.remoteConfigured && result.remoteUrl) {
                         initRemoteUrl = result.remoteUrl;
                         await configurarRemoto(projectPath, result.remoteUrl);
+                        await guardarConfigRemoto(projectPath, result.remoteUrl, true);
                       }
                       await actualizarGitStatus(projectPath);
                     } catch (e) {
@@ -2770,6 +2773,7 @@
               if (result.remoteConfigured && result.remoteUrl) {
                 reconfRemoteUrl = result.remoteUrl;
                 await configurarRemoto(projectPath, result.remoteUrl);
+                await guardarConfigRemoto(projectPath, result.remoteUrl, true);
               }
               await actualizarGitStatus(projectPath);
             } catch (e) {

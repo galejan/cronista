@@ -53,7 +53,7 @@
       }
       // Only load existing remote config for reconfiguration (not new projects)
       if (!projectName) {
-        const remote = await cargarConfigRemoto();
+        const remote = await cargarConfigRemoto(projectPath);
         if (remote && remote.url) {
           remoteUrl = remote.url;
           wantsRemote = true;
@@ -85,7 +85,7 @@
     try {
       await guardarIdentidadGit(name, email, githubUser || undefined);
       // Explicitly set no remote
-      await guardarConfigRemoto("", false);
+      await guardarConfigRemoto(projectPath, "", false);
       close({ remoteConfigured: false, remoteUrl: "" });
     } catch (e) {
       error = String(e);
@@ -100,12 +100,12 @@
     try {
       await guardarIdentidadGit(name, email, githubUser || undefined);
       if (wantsRemote && remoteUrl.trim()) {
-        await guardarConfigRemoto(remoteUrl.trim(), true);
+        await guardarConfigRemoto(projectPath, remoteUrl.trim(), true);
         // configurar_remoto needs the project to have git initialized.
         // We save the config now; the page handles git init + remote setup.
         close({ remoteConfigured: true, remoteUrl: remoteUrl.trim() });
       } else {
-        await guardarConfigRemoto("", false);
+        await guardarConfigRemoto(projectPath, "", false);
         close({ remoteConfigured: false, remoteUrl: "" });
       }
     } catch (e) {

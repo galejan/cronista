@@ -282,14 +282,14 @@ export async function guardarIdentidadGit(name: string, email: string, githubUse
   return invoke("guardar_identidad_git", { name, email, githubUser });
 }
 
-export async function cargarConfigRemoto(): Promise<{url: string, push_enabled: boolean, consecutive_failures: number} | null> {
-  const result = await invoke<string>("cargar_config_remoto");
+export async function cargarConfigRemoto(projectPath: string): Promise<{push_enabled: boolean, consecutive_failures: number, url: string | null} | null> {
+  const result = await invoke<string>("cargar_config_remoto", { proyectoPath: projectPath });
   if (result === "null") return null;
   return JSON.parse(result);
 }
 
-export async function guardarConfigRemoto(url: string, pushEnabled: boolean): Promise<string> {
-  return invoke("guardar_config_remoto", { url, pushEnabled });
+export async function guardarConfigRemoto(projectPath: string, url: string, pushEnabled: boolean): Promise<string> {
+  return invoke("guardar_config_remoto", { proyectoPath: projectPath, url, pushEnabled });
 }
 
 export async function configurarRemoto(path: string, url: string): Promise<string> {

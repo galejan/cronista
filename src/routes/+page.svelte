@@ -86,7 +86,6 @@
   import Notepad from "phosphor-svelte/lib/Notepad";
   import Package from "phosphor-svelte/lib/Package";
   import PencilSimple from "phosphor-svelte/lib/PencilSimple";
-  import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
   import Question from "phosphor-svelte/lib/Question";
   import Scroll from "phosphor-svelte/lib/Scroll";
@@ -1770,22 +1769,26 @@
         class="tab"
         class:active={activeTab === "capitulos"}
         onclick={() => { pendingDelete = null; activeTab = "capitulos"; activeNote = ""; }}
-      ><Notebook size={18} weight="light" color="currentColor" /> {t("tabs.chapters")}</button>
+        title={t("tabs.chapters")}
+      ><Notebook size={18} weight="light" color="currentColor" /></button>
       <button
         class="tab"
         class:active={activeTab === "personajes"}
         onclick={() => { pendingDelete = null; activeTab = "personajes"; }}
-      ><User size={18} weight="light" color="currentColor" /> {t("tabs.characters")}</button>
+        title={t("tabs.characters")}
+      ><User size={18} weight="light" color="currentColor" /></button>
       <button
         class="tab"
         class:active={activeTab === "notas"}
         onclick={() => { pendingDelete = null; activeTab = "notas"; }}
-      ><Notepad size={18} weight="light" color="currentColor" /> {t("tabs.notes")}</button>
+        title={t("tabs.notes")}
+      ><Notepad size={18} weight="light" color="currentColor" /></button>
       <button
         class="tab"
         class:active={activeTab === "timeline"}
         onclick={() => { pendingDelete = null; activeTab = "timeline"; }}
-      ><Clock size={18} weight="light" color="currentColor" /> {t("tabs.timeline")}
+        title={t("tabs.timeline")}
+      ><Clock size={18} weight="light" color="currentColor" />
         {#if timeline.length > 0}
           <span class="timeline-badge">{timeline.length}</span>
         {/if}
@@ -1794,7 +1797,8 @@
         class="tab"
         class:active={activeTab === "lugares"}
         onclick={() => { pendingDelete = null; activeTab = "lugares"; }}
-      ><MapTrifold size={18} weight="light" color="currentColor" /> {t("tabs.places")}</button>
+        title={t("tabs.places")}
+      ><MapTrifold size={18} weight="light" color="currentColor" /></button>
     </nav>
 
     <div class="sidebar-content">
@@ -2052,7 +2056,7 @@
           {/if}
 
           <button class="btn-add" onclick={() => crearNotaHandler()}>
-            <NotePencil size={16} weight="light" color="currentColor" /> {t("notes.new")}
+            <Notepad size={16} weight="light" color="currentColor" /> {t("notes.new")}
           </button>
         </div>
       {/if}
@@ -2203,7 +2207,7 @@
             </div>
           {:else}
             <button class="btn-add" onclick={() => { cancelarEdicion(); eventoFormVisible = true; }}>
-              <Plus size={16} weight="light" color="currentColor" /> {t("timeline.newEvent")}
+              <Clock size={16} weight="light" color="currentColor" /> {t("timeline.newEvent")}
             </button>
           {/if}
         </div>
@@ -3736,10 +3740,6 @@
   :global(.dark) .timeline-badge {
     background: #334155;
     color: #94a3b8;
-  }
-
-  .timeline-content {
-    padding: 0.25rem 0 0.5rem 0;
   }
 
   .timeline-list {

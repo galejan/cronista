@@ -59,7 +59,7 @@
   import { documentDir } from "@tauri-apps/api/path";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { PhysicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
-  import { open } from "@tauri-apps/plugin-dialog";
+  import { open, message, ask } from "@tauri-apps/plugin-dialog";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import pkg from "../../package.json";
   const APP_VERSION = pkg.version;
@@ -292,6 +292,24 @@
   let fontPickerOpen = $state(false);
   let fontPickerFont = $state("monospace");
   let fontPickerResolve = $state<((v: string) => void) | null>(null);
+
+  // ── Generic text input picker (replaces native prompt()) ─────
+  let textPickerOpen = $state(false);
+  let textPickerMessage = $state("");
+  let textPickerValue = $state("");
+  let textPickerDefault = $state("");
+  let textPickerResolve = $state<((v: string | null) => void) | null>(null);
+
+  /** Show a text input modal and return the value (or null if cancelled). */
+  function pickText(message: string, defaultValue?: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      textPickerMessage = message;
+      textPickerValue = defaultValue || "";
+      textPickerDefault = defaultValue || "";
+      textPickerOpen = true;
+      textPickerResolve = resolve;
+    });
+  }
   let saveStatus = $state<"" | "saved" | "unsaved" | "saving">("");
 
   // ── Context menu state ──────────────────────────────────────
@@ -516,7 +534,7 @@
         await refreshChapters();
       } catch (e) {
         console.error("[cron-insta] Delete chapter failed:", e);
-        alert(`${t("chapters.deleteError")} ${e}`);
+        await message(`${t("chapters.deleteError")} ${e}`);
       }
       pendingDelete = null;
     } else {
@@ -534,7 +552,7 @@
     const text = contextMenu.selectedText;
     if (!text.trim()) return;
 
-    const title = prompt(t("context.noteTitlePrompt"), text.trim().slice(0, 60));
+    const title = await pickText(t("context.noteTitlePrompt"), text.trim().slice(0, 60));
     if (!title?.trim()) return;
 
     const id = "note-" + Date.now();
@@ -543,7 +561,7 @@
       await refreshNotas();
     } catch (e) {
       console.error("[cron-insta] Save note from context failed:", e);
-      alert(`${t("notes.createError")} ${e}`);
+      await message(`${t("notes.createError")} ${e}`);
     }
   }
 
@@ -553,7 +571,7 @@
     if (!text.trim()) return;
 
     // Prompt for character name
-    const name = prompt(t("context.characterPrompt"));
+    const name = await pickText(t("context.characterPrompt"));
     if (!name?.trim()) return;
 
     // Load characters list and find match
@@ -562,12 +580,12 @@
       const chars: { id: string; name: string }[] = JSON.parse(raw);
       const found = chars.find((c) => c.name === name.trim());
       if (!found) {
-        alert(t("context.characterNotFound").replace("{name}", name.trim()));
+        await message(t("context.characterNotFound").replace("{name}", name.trim()));
         return;
       }
 
       // Prompt for where to append
-      const field = prompt("¿Dónde? (personalidad / traumas)", "personalidad");
+      const field = await pickText("¿Dónde? (personalidad / traumas)", "personalidad");
       if (!field) return;
 
       // Load character
@@ -589,7 +607,7 @@
       showToast(t("context.traitSaved").replace("{name}", found.name), "warning", undefined, CheckCircle);
     } catch (e) {
       console.error("[cron-insta] Save trait from context failed:", e);
-      alert(`${t("characters.saveError")} ${e}`);
+      await message(`${t("characters.saveError")} ${e}`);
     }
   }
 
@@ -598,7 +616,7 @@
     const text = contextMenu.selectedText;
     if (!text.trim()) return;
 
-    const filename = prompt(t("context.chapterNamePrompt"));
+    const filename = await pickText(t("context.chapterNamePrompt"));
     if (!filename?.trim()) return;
 
     const sanitized = filename
@@ -621,7 +639,7 @@
       await cargarCapituloActual(sanitized);
     } catch (e) {
       console.error("[cron-insta] New chapter from context failed:", e);
-      alert(`${t("chapters.createError")} ${e}`);
+      await message(`${t("chapters.createError")} ${e}`);
     }
   }
 
@@ -630,7 +648,7 @@
     const text = contextMenu.selectedText;
     if (!text.trim()) return;
 
-    const title = prompt(t("context.eventTitlePrompt"), text.trim().slice(0, 60));
+    const title = await pickText(t("context.eventTitlePrompt"), text.trim().slice(0, 60));
     if (!title?.trim()) return;
 
     const evento = {
@@ -647,7 +665,7 @@
       await refreshTimeline();
     } catch (e) {
       console.error("[cron-insta] Add event from context failed:", e);
-      alert(`${t("timeline.addError")} ${e}`);
+      await message(`${t("timeline.addError")} ${e}`);
     }
   }
 
@@ -656,7 +674,7 @@
     const text = contextMenu.selectedText;
     if (!text.trim()) return;
 
-    const name = prompt(t("context.placePrompt"));
+    const name = await pickText(t("context.placePrompt"));
     if (!name?.trim()) return;
 
     try {
@@ -694,7 +712,7 @@
       await refreshLugares();
     } catch (e) {
       console.error("[cron-insta] Add to place failed:", e);
-      alert(`${t("places.saveError")} ${e}`);
+      await message(`${t("places.saveError")} ${e}`);
     }
   }
 
@@ -754,7 +772,7 @@
 
       const gitDisponible = await detectarGit();
       if (!gitDisponible) {
-        const continuar = confirm(
+        const continuar = await ask(
           t("git.notInstalled") + "\n\n" +
           t("git.notInstalledDesc") + "\n\n" +
           t("git.installInstructions") + "\n\n" +
@@ -763,7 +781,7 @@
         if (!continuar) return;
       }
 
-      const name = prompt(t("dialog.projectName"), t("dialog.projectNameDefault"));
+      const name = await pickText(t("dialog.projectName"), t("dialog.projectNameDefault"));
       if (!name) return;
 
       // Font selection — show picker modal
@@ -813,7 +831,7 @@
               );
             } else if (msg.startsWith("REMOTE_HAS_COMMITS:")) {
               const desc = msg.replace("REMOTE_HAS_COMMITS:", "");
-              const shouldSync = confirm(desc);
+              const shouldSync = await ask(desc);
               if (shouldSync) {
                 try {
                   const syncMsg = await sincronizarRemoto(path);
@@ -832,12 +850,12 @@
         await refreshChapters();
       } catch (e) {
         console.error("[cron-insta] Failed to create project:", e);
-        alert(`${t("dialog.createProjectError")} ${e}`);
+        await message(`${t("dialog.createProjectError")} ${e}`);
         return;
       }
     }
 
-    const filename = prompt(t("chapters.newFilePrompt"), "0001_prologue.md");
+    const filename = await pickText(t("chapters.newFilePrompt"), "0001_prologue.md");
     if (!filename) return;
 
     // Use the chapter filename (without .md) as the initial title
@@ -858,7 +876,7 @@
       await refreshChapters();
     } catch (e) {
       console.error("[cron-insta] Create chapter failed:", e);
-      alert(`${t("chapters.createError")} ${e}`);
+      await message(`${t("chapters.createError")} ${e}`);
     }
   }
 
@@ -930,14 +948,14 @@
       if (hasRemote) {
         const repo = extraerRepoDeUrl(detected.remote_url!);
         if (identityDiferente) {
-          alert(
+          await message(
             t("git.detected")
               .replace("{repo}", repo)
               .replace("{name}", detected.name!)
               .replace("{email}", detected.email!),
           );
         } else {
-          alert(t("git.detectedOrigin").replace("{repo}", repo));
+          await message(t("git.detectedOrigin").replace("{repo}", repo));
         }
       }
     } catch (e) {
@@ -979,7 +997,7 @@
       // Warn if git is unavailable
       if (gitStatus === "unavailable") {
         console.warn("[cron-insta] Git not detected — automatic version control disabled");
-        alert(t("git.notInstalled") + "\n\n" + t("git.notInstalledDesc"));
+        await message(t("git.notInstalled") + "\n\n" + t("git.notInstalledDesc"));
       }
 
       // Auto-load first chapter if there is one
@@ -988,7 +1006,7 @@
       }
     } catch (e) {
       console.error("[cron-insta] Failed to open project:", e);
-      alert(t("dialog.openProjectError") + `\n\n${e}`);
+      await message(t("dialog.openProjectError") + `\n\n${e}`);
     }
   }
 
@@ -1069,7 +1087,7 @@
       try {
         const gitExists = await verificarGitInicializado(importedPath);
         if (gitExists) {
-          const keepHistory = confirm(t("import.gitQuestion"));
+          const keepHistory = await ask(t("import.gitQuestion"));
           if (!keepHistory) {
             await eliminarDirectorioGit(importedPath);
             await inicializarGit(importedPath);
@@ -1094,7 +1112,7 @@
       showToast(t("import.success"), "warning", undefined, CheckCircle);
     } catch (e) {
       console.error("[cron-insta] Import failed:", e);
-      alert(t("import.error") + "\n\n" + String(e));
+      await message(t("import.error") + "\n\n" + String(e));
     }
   }
 
@@ -1175,7 +1193,7 @@
 
   async function crearPersonajeHandler(): Promise<void> {
     if (!personajeNuevoNombre.trim()) {
-      alert(t("characters.nameRequired"));
+      await message(t("characters.nameRequired"));
       return;
     }
     const id = personajeNuevoNombre
@@ -1201,7 +1219,7 @@
       await refreshPersonajes();
     } catch (e) {
       console.error("[cron-insta] Create character failed:", e);
-      alert(`${t("characters.createError")} ${e}`);
+      await message(`${t("characters.createError")} ${e}`);
     }
   }
 
@@ -1235,12 +1253,12 @@
       await refreshPersonajes();
     } catch (e) {
       console.error("[cron-insta] Update character failed:", e);
-      alert(`${t("characters.saveError")} ${e}`);
+      await message(`${t("characters.saveError")} ${e}`);
     }
   }
 
   async function eliminarPersonajeHandler(id: string): Promise<void> {
-    if (!confirm(t("characters.deleteConfirm"))) return;
+    if (!await ask(t("characters.deleteConfirm"))) return;
     try {
       await eliminarPersonaje(projectPath, id);
       personajeExpandido = null;
@@ -1249,7 +1267,7 @@
       await refreshTimeline();
     } catch (e) {
       console.error("[cron-insta] Delete character failed:", e);
-      alert(`${t("characters.deleteError")} ${e}`);
+      await message(`${t("characters.deleteError")} ${e}`);
     }
   }
 
@@ -1282,7 +1300,7 @@
   }
 
   async function crearNotaHandler(): Promise<void> {
-    const title = prompt(t("notes.titlePrompt"));
+    const title = await pickText(t("notes.titlePrompt"));
     if (!title?.trim()) return;
     const id = title
       .trim()
@@ -1296,7 +1314,7 @@
       await refreshNotas();
     } catch (e) {
       console.error("[cron-insta] Create note failed:", e);
-      alert(`${t("notes.createError")} ${e}`);
+      await message(`${t("notes.createError")} ${e}`);
     }
   }
 
@@ -1332,7 +1350,7 @@
   }
 
   async function eliminarNotaHandler(id: string): Promise<void> {
-    if (!confirm(t("notes.deleteConfirm"))) return;
+    if (!await ask(t("notes.deleteConfirm"))) return;
     try {
       await eliminarNota(projectPath, id);
       if (activeNote === id) {
@@ -1343,7 +1361,7 @@
       await refreshNotas();
     } catch (e) {
       console.error("[cron-insta] Delete note failed:", e);
-      alert(`${t("notes.deleteError")} ${e}`);
+      await message(`${t("notes.deleteError")} ${e}`);
     }
   }
 
@@ -1385,7 +1403,7 @@
 
   async function guardarEventoHandler(): Promise<void> {
     if (!nuevoEventoTitulo) {
-      alert(t("timeline.requiredFields"));
+      await message(t("timeline.requiredFields"));
       return;
     }
     const evento: Record<string, any> = {
@@ -1408,18 +1426,18 @@
       await refreshTimeline();
     } catch (e) {
       console.error("[cron-insta] Save timeline event failed:", e);
-      alert(`${t("timeline.addError")} ${e}`);
+      await message(`${t("timeline.addError")} ${e}`);
     }
   }
 
   async function eliminarEventoHandler(id: string): Promise<void> {
-    if (!confirm(t("timeline.deleteConfirm"))) return;
+    if (!await ask(t("timeline.deleteConfirm"))) return;
     try {
       await eliminarEventoTimeline(projectPath, id);
       await refreshTimeline();
     } catch (e) {
       console.error("[cron-insta] Delete timeline event failed:", e);
-      alert(`${t("timeline.deleteError")} ${e}`);
+      await message(`${t("timeline.deleteError")} ${e}`);
     }
   }
 
@@ -1450,7 +1468,7 @@
 
   async function crearLugarHandler(): Promise<void> {
     if (!lugarNuevoNombre.trim()) {
-      alert(t("places.nameRequired"));
+      await message(t("places.nameRequired"));
       return;
     }
     const id = lugarNuevoNombre
@@ -1474,7 +1492,7 @@
       await refreshLugares();
     } catch (e) {
       console.error("[cron-insta] Create place failed:", e);
-      alert(`${t("places.createError")} ${e}`);
+      await message(`${t("places.createError")} ${e}`);
     }
   }
 
@@ -1507,12 +1525,12 @@
       await refreshLugares();
     } catch (e) {
       console.error("[cron-insta] Update place failed:", e);
-      alert(`${t("places.saveError")} ${e}`);
+      await message(`${t("places.saveError")} ${e}`);
     }
   }
 
   async function eliminarLugarHandler(id: string): Promise<void> {
-    if (!confirm(t("places.deleteConfirm"))) return;
+    if (!await ask(t("places.deleteConfirm"))) return;
     try {
       await eliminarLugar(projectPath, id);
       lugarExpandido = null;
@@ -1520,7 +1538,7 @@
       await refreshLugares();
     } catch (e) {
       console.error("[cron-insta] Delete place failed:", e);
-      alert(`${t("places.deleteError")} ${e}`);
+      await message(`${t("places.deleteError")} ${e}`);
     }
   }
 
@@ -2038,9 +2056,9 @@
           try {
             const result = await exportarProyectoZip(projectPath);
             exportModal = false;
-            alert(t("export.zipSuccess") + "\n" + result);
+            await message(t("export.zipSuccess") + "\n" + result);
           } catch (e) {
-            alert(t("export.error") + " " + e);
+            await message(t("export.error") + " " + e);
           }
         }}>
           <span class="export-option-icon"><Export size={16} weight="light" color="currentColor" /></span>
@@ -2052,9 +2070,9 @@
           try {
             const result = await exportarProyectoMd(projectPath);
             exportModal = false;
-            alert(t("export.mdSuccess") + "\n" + result);
+            await message(t("export.mdSuccess") + "\n" + result);
           } catch (e) {
-            alert(t("export.error") + " " + e);
+            await message(t("export.error") + " " + e);
           }
         }}>
           <span class="export-option-icon"><FileText size={16} weight="light" color="currentColor" /></span>
@@ -2470,9 +2488,9 @@
               console.log("[cron-insta] Export button clicked");
               try {
                 const result = await exportarProyectoZip(projectPath);
-                alert(t("export.zipSuccess") + "\n" + result);
+                await message(t("export.zipSuccess") + "\n" + result);
               } catch (e) {
-                alert(t("export.error") + " " + e);
+                await message(t("export.error") + " " + e);
               }
             }} title={t("export.zipTitle")}>
               <Export size={18} weight="light" color="currentColor" /> {t("export.export")}
@@ -2480,9 +2498,9 @@
             <button class="footer-btn" onclick={async () => {
               try {
                 const result = await exportarProyectoMd(projectPath);
-                alert(t("export.mdSuccess") + "\n" + result);
+                await message(t("export.mdSuccess") + "\n" + result);
               } catch (e) {
-                alert(t("export.error") + " " + e);
+                await message(t("export.error") + " " + e);
               }
             }} title={t("export.mdTitle")}>
               <FileText size={18} weight="light" color="currentColor" /> {t("export.share")}
@@ -2558,7 +2576,7 @@
                         );
                       } else if (msg.startsWith("REMOTE_HAS_COMMITS:")) {
                         const desc = msg.replace("REMOTE_HAS_COMMITS:", "");
-                        const shouldSync = confirm(desc);
+                        const shouldSync = await ask(desc);
                         if (shouldSync) {
                           try {
                             const syncMsg = await sincronizarRemoto(projectPath);
@@ -2568,7 +2586,7 @@
                           }
                         }
                       } else {
-                        alert(t("git.initError") + " " + e);
+                        await message(t("git.initError") + " " + e);
                       }
                     }
                   }}
@@ -2909,7 +2927,7 @@
                 );
               } else if (msg.startsWith("REMOTE_HAS_COMMITS:")) {
                 const desc = msg.replace("REMOTE_HAS_COMMITS:", "");
-                const shouldSync = confirm(desc);
+                const shouldSync = await ask(desc);
                 if (shouldSync) {
                   try {
                     const syncMsg = await sincronizarRemoto(projectPath);
@@ -2941,6 +2959,39 @@
           }}
         >
           {t("git.toolbarRetry")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Text input picker modal (replaces native prompt()) -->
+{#if textPickerOpen}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    role="dialog"
+    tabindex="-1"
+    aria-label={textPickerMessage}
+    onkeydown={(e) => e.key === "Escape" && textPickerResolve?.(null) && (textPickerOpen = false)}
+  >
+    <div class="modal-panel text-picker-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+      <h2>{textPickerMessage}</h2>
+      <input
+        type="text"
+        class="modal-input"
+        bind:value={textPickerValue}
+        onkeydown={(e) => {
+          if (e.key === "Enter") { textPickerResolve?.(textPickerValue); textPickerOpen = false; }
+        }}
+        autofocus
+      />
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick={() => { textPickerResolve?.(null); textPickerOpen = false; }}>
+          {t("common.cancel")}
+        </button>
+        <button class="btn-primary" onclick={() => { textPickerResolve?.(textPickerValue); textPickerOpen = false; }}>
+          {t("common.accept")}
         </button>
       </div>
     </div>

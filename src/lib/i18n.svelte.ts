@@ -301,6 +301,7 @@ const translations: Record<Lang, Record<string, string>> = {
     // ── Common ─────────────────────────────────────────────
     "common.error": "Error",
     "common.cancel": "Cancelar",
+    "common.accept": "Aceptar",
     "common.delete": "Eliminar",
 
     // ── Git ────────────────────────────────────────────────
@@ -649,6 +650,7 @@ const translations: Record<Lang, Record<string, string>> = {
     // ── Common ─────────────────────────────────────────────
     "common.error": "Error",
     "common.cancel": "Cancel",
+    "common.accept": "Accept",
     "common.delete": "Delete",
 
     // ── Git ────────────────────────────────────────────────

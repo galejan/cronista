@@ -220,6 +220,47 @@ export async function reordenarTimeline(
   return invoke("reordenar_timeline", { proyectoPath, idsJson: JSON.stringify(ids) });
 }
 
+// ── Places ────────────────────────────────────────────────────
+
+export async function listarLugares(
+  proyectoPath: string,
+): Promise<string> {
+  return invoke("listar_lugares", { proyectoPath });
+}
+
+export async function crearLugar(
+  proyectoPath: string,
+  lugarJson: string,
+): Promise<string> {
+  return invoke("crear_lugar", { proyectoPath, lugarJson });
+}
+
+export async function cargarLugar(
+  proyectoPath: string,
+  id: string,
+): Promise<string> {
+  return invoke("cargar_lugar", { proyectoPath, id });
+}
+
+export async function actualizarLugar(
+  proyectoPath: string,
+  id: string,
+  lugarJson: string,
+): Promise<string> {
+  return invoke("actualizar_lugar", {
+    proyectoPath,
+    id,
+    lugarJson,
+  });
+}
+
+export async function eliminarLugar(
+  proyectoPath: string,
+  id: string,
+): Promise<string> {
+  return invoke("eliminar_lugar", { proyectoPath, id });
+}
+
 // ── Font ──────────────────────────────────────────────────────
 
 export async function actualizarFuenteProyecto(

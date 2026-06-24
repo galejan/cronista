@@ -1,11 +1,12 @@
 schema: spec-driven
 
 context: |
-  Tech: Tauri (Rust) + Svelte 5/TypeScript + Tailwind CSS + TipTap editor
+  Tech: Tauri v2 (Rust) + SvelteKit/Svelte 5 + TypeScript + TipTap v3 editor
   Arch: Local-First desktop app, IPC via Tauri commands, embedded Git for versioning
-  Pkg: pnpm
-  Testing: Planned — Rust #[cfg(test)] + Vitest/Svelte Testing Library (not yet scaffolded)
-  Style: Minimalist UI, 60/40 layout (editor/sidebar), bubble menu, drag-and-drop
+  Pkg: pnpm 10
+  Testing: Rust — 84 #[cfg(test)] unit tests in lib.rs. Frontend — NO test runner (vitest/jest not installed).
+  Quality: TypeScript strict mode, svelte-check type checking. No linter/formatter configured.
+  Style: Minimalist UI, 60/40 layout (editor/sidebar), bubble menu, drag-and-drop, SPA mode with adapter-static.
 
 rules:
   proposal:
@@ -20,12 +21,11 @@ rules:
     - Group by phase, use hierarchical numbering
     - Keep tasks completable in one session
   apply:
-    - Follow existing code patterns
     tdd: false
-    test_command: ""
+    test_command: "cargo test --manifest-path src-tauri/Cargo.toml"
   verify:
-    test_command: ""
-    build_command: ""
+    test_command: "cargo test --manifest-path src-tauri/Cargo.toml"
+    build_command: "pnpm tauri build"
     coverage_threshold: 0
   archive:
     - Warn before merging destructive deltas

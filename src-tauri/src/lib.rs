@@ -47,6 +47,8 @@ struct Metadata {
     last_modified: String,
     chapters_order: Vec<String>,
     characters_index: Vec<CharacterIndex>,
+    #[serde(default)]
+    places_index: Vec<LugarIndexItem>,
     #[serde(default = "default_font_family")]
     font_family: String,
 }
@@ -99,6 +101,23 @@ struct CharacterIndexItem {
 struct NoteIndexItem {
     id: String,
     title: String,
+}
+
+// ── Places — lugares ──────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct LugarIndexItem {
+    id: String,
+    name: String,
+}
+
+#[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Lugar {
+    id: String,
+    name: String,
+    #[serde(default)]
+    description: String,
 }
 
 #[allow(non_snake_case)]
@@ -232,11 +251,15 @@ fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_fami
         .map_err(|e| format!("No se pudo crear el directorio del proyecto: {}", e))?;
 
     // Create subdirectories
-    let subdirs = [".config", "capitulos", "personajes", "notas"];
+    let subdirs = [".config", "capitulos", "personajes", "notas", "lugares"];
     for sub in &subdirs {
         std::fs::create_dir_all(base.join(sub))
             .map_err(|e| format!("No se pudo crear el directorio {}: {}", sub, e))?;
     }
+
+    // Seed lugares/index.json (empty array)
+    std::fs::write(base.join("lugares/index.json"), "[]")
+        .map_err(|e| format!("Error al escribir lugares/index.json: {}", e))?;
 
     // Write metadata.json
     let metadata = Metadata {
@@ -244,6 +267,7 @@ fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_fami
         last_modified: Local::now().to_rfc3339(),
         chapters_order: vec![],
         characters_index: vec![],
+        places_index: vec![],
         font_family: font_family.unwrap_or_else(default_font_family),
     };
     let metadata_json = serde_json::to_string_pretty(&metadata)
@@ -1212,6 +1236,217 @@ fn eliminar_nota(proyecto_path: String, id: String) -> Result<String, String> {
     }
 
     Ok(format!("Nota '{}' eliminada.", id))
+}
+
+// ---------------------------------------------------------------------------
+// Places — lugares
+// ---------------------------------------------------------------------------
+
+/// List all places in a project.
+///
+/// Reads `lugares/index.json`. Returns JSON array string.
+/// If file is missing, returns "[]".
+#[tauri::command]
+fn listar_lugares(proyecto_path: String) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+
+    let index_path = Path::new(&proyecto_path).join("lugares").join("index.json");
+
+    if !index_path.exists() {
+        return Ok("[]".to_string());
+    }
+
+    std::fs::read_to_string(&index_path)
+        .map_err(|e| format!("No se pudo leer el índice de lugares: {}", e))
+}
+
+/// Create a new place.
+///
+/// Parses the input JSON to extract `id` and `name`. Rejects duplicates.
+/// Creates `lugares/{id}.json` and updates `lugares/index.json`.
+#[tauri::command]
+fn crear_lugar(proyecto_path: String, lugar_json: String) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+
+    let lugar: Lugar = serde_json::from_str(&lugar_json)
+        .map_err(|e| format!("Error al parsear el lugar: {}", e))?;
+
+    if lugar.id.trim().is_empty() {
+        return Err("El ID del lugar no puede estar vacío.".to_string());
+    }
+    if lugar.name.trim().is_empty() {
+        return Err("El nombre del lugar no puede estar vacío.".to_string());
+    }
+
+    let lugares_dir = Path::new(&proyecto_path).join("lugares");
+    let lugar_file = lugares_dir.join(format!("{}.json", lugar.id));
+
+    // Reject duplicates
+    if lugar_file.exists() {
+        return Err(format!("El lugar '{}' ya existe.", lugar.id));
+    }
+
+    // Ensure directory exists
+    std::fs::create_dir_all(&lugares_dir)
+        .map_err(|e| format!("No se pudo crear el directorio lugares: {}", e))?;
+
+    // Write place file
+    let lugar_json = serde_json::to_string_pretty(&lugar)
+        .map_err(|e| format!("Error al serializar el lugar: {}", e))?;
+    std::fs::write(&lugar_file, lugar_json)
+        .map_err(|e| format!("Error al crear el lugar: {}", e))?;
+
+    // Update index
+    let index_path = lugares_dir.join("index.json");
+    let mut index: Vec<LugarIndexItem> = if index_path.exists() {
+        let raw = std::fs::read_to_string(&index_path)
+            .map_err(|e| format!("Error al leer el índice de lugares: {}", e))?;
+        serde_json::from_str(&raw).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    index.push(LugarIndexItem {
+        id: lugar.id.clone(),
+        name: lugar.name.clone(),
+    });
+
+    let index_json = serde_json::to_string_pretty(&index)
+        .map_err(|e| format!("Error al serializar el índice de lugares: {}", e))?;
+    std::fs::write(&index_path, index_json)
+        .map_err(|e| format!("Error al escribir el índice de lugares: {}", e))?;
+
+    Ok(format!("Lugar '{}' creado.", lugar.name))
+}
+
+/// Load a place by ID.
+///
+/// Reads `lugares/{id}.json` and returns the full JSON string.
+#[tauri::command]
+fn cargar_lugar(proyecto_path: String, id: String) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if id.trim().is_empty() {
+        return Err("El ID del lugar no puede estar vacío.".to_string());
+    }
+
+    let lugar_path = Path::new(&proyecto_path)
+        .join("lugares")
+        .join(format!("{}.json", id));
+
+    if !lugar_path.exists() {
+        return Err(format!("Lugar '{}' no encontrado.", id));
+    }
+
+    std::fs::read_to_string(&lugar_path)
+        .map_err(|e| format!("Error al leer el lugar: {}", e))
+}
+
+/// Update a place.
+///
+/// Overwrites `lugares/{id}.json`. If the name changed, updates the index entry.
+#[tauri::command]
+fn actualizar_lugar(
+    proyecto_path: String,
+    id: String,
+    lugar_json: String,
+) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if id.trim().is_empty() {
+        return Err("El ID del lugar no puede estar vacío.".to_string());
+    }
+
+    let lugares_dir = Path::new(&proyecto_path).join("lugares");
+    let lugar_path = lugares_dir.join(format!("{}.json", id));
+
+    if !lugar_path.exists() {
+        return Err(format!("Lugar '{}' no encontrado.", id));
+    }
+
+    // Read old place to detect name change
+    let old_raw = std::fs::read_to_string(&lugar_path)
+        .map_err(|e| format!("Error al leer el lugar existente: {}", e))?;
+    let old_lugar: Lugar = serde_json::from_str(&old_raw)
+        .map_err(|e| format!("Error al parsear el lugar existente: {}", e))?;
+
+    let lugar: Lugar = serde_json::from_str(&lugar_json)
+        .map_err(|e| format!("Error al parsear el lugar actualizado: {}", e))?;
+
+    // Overwrite file
+    let lugar_json = serde_json::to_string_pretty(&lugar)
+        .map_err(|e| format!("Error al serializar el lugar: {}", e))?;
+    std::fs::write(&lugar_path, lugar_json)
+        .map_err(|e| format!("Error al guardar el lugar: {}", e))?;
+
+    // Update index if name changed
+    if old_lugar.name != lugar.name {
+        let index_path = lugares_dir.join("index.json");
+        if index_path.exists() {
+            let raw = std::fs::read_to_string(&index_path)
+                .map_err(|e| format!("Error al leer el índice de lugares: {}", e))?;
+            let mut index: Vec<LugarIndexItem> =
+                serde_json::from_str(&raw).unwrap_or_default();
+            for item in &mut index {
+                if item.id == id {
+                    item.name = lugar.name.clone();
+                    break;
+                }
+            }
+            let index_json = serde_json::to_string_pretty(&index)
+                .map_err(|e| format!("Error al serializar el índice de lugares: {}", e))?;
+            std::fs::write(&index_path, index_json)
+                .map_err(|e| format!("Error al escribir el índice de lugares: {}", e))?;
+        }
+    }
+
+    Ok(format!("Lugar '{}' actualizado.", lugar.name))
+}
+
+/// Delete a place.
+///
+/// Deletes `lugares/{id}.json` and removes from `lugares/index.json`.
+#[tauri::command]
+fn eliminar_lugar(proyecto_path: String, id: String) -> Result<String, String> {
+    if proyecto_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if id.trim().is_empty() {
+        return Err("El ID del lugar no puede estar vacío.".to_string());
+    }
+
+    let lugares_dir = Path::new(&proyecto_path).join("lugares");
+    let lugar_path = lugares_dir.join(format!("{}.json", id));
+
+    if !lugar_path.exists() {
+        return Err(format!("Lugar '{}' no encontrado.", id));
+    }
+
+    // Delete the file
+    std::fs::remove_file(&lugar_path)
+        .map_err(|e| format!("Error al eliminar el lugar: {}", e))?;
+
+    // Remove from index
+    let index_path = lugares_dir.join("index.json");
+    if index_path.exists() {
+        let raw = std::fs::read_to_string(&index_path)
+            .map_err(|e| format!("Error al leer el índice de lugares: {}", e))?;
+        let mut index: Vec<LugarIndexItem> =
+            serde_json::from_str(&raw).unwrap_or_default();
+        index.retain(|item| item.id != id);
+        let index_json = serde_json::to_string_pretty(&index)
+            .map_err(|e| format!("Error al serializar el índice de lugares: {}", e))?;
+        std::fs::write(&index_path, index_json)
+            .map_err(|e| format!("Error al escribir el índice de lugares: {}", e))?;
+    }
+
+    Ok(format!("Lugar '{}' eliminado.", id))
 }
 
 // ---------------------------------------------------------------------------
@@ -2350,6 +2585,11 @@ pub fn run() {
             actualizar_evento_timeline,
             reordenar_timeline,
             eliminar_evento_timeline,
+            listar_lugares,
+            crear_lugar,
+            cargar_lugar,
+            actualizar_lugar,
+            eliminar_lugar,
             exportar_proyecto_zip,
             exportar_proyecto_md,
             importar_proyecto,
@@ -2462,16 +2702,21 @@ mod tests {
         let base = Path::new(&path);
         std::fs::create_dir_all(base)
             .map_err(|e| format!("No se pudo crear el directorio del proyecto: {}", e))?;
-        let subdirs = [".config", "capitulos", "personajes", "notas"];
+        let subdirs = [".config", "capitulos", "personajes", "notas", "lugares"];
         for sub in &subdirs {
             std::fs::create_dir_all(base.join(sub))
                 .map_err(|e| format!("No se pudo crear el directorio {}: {}", sub, e))?;
         }
+        // Seed lugares/index.json (empty array)
+        std::fs::write(base.join("lugares/index.json"), "[]")
+            .map_err(|e| format!("Error al escribir lugares/index.json: {}", e))?;
+
         let metadata = Metadata {
             project_name: nombre.clone(),
             last_modified: Local::now().to_rfc3339(),
             chapters_order: vec![],
             characters_index: vec![],
+            places_index: vec![],
             font_family: font_family.unwrap_or_else(default_font_family),
         };
         let metadata_json = serde_json::to_string_pretty(&metadata)
@@ -3807,6 +4052,204 @@ mod tests {
             "relatedChapters should be empty after chapter deletion, got: {:?}",
             timeline[0].relatedChapters
         );
+    }
+
+    // ========================================================================
+    // places — lugares tests
+    // ========================================================================
+
+    #[test]
+    fn test_crear_proyecto_creates_lugares_directory() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        assert!(
+            dir.path().join("lugares").exists(),
+            "lugares directory should exist"
+        );
+        assert!(
+            dir.path().join("lugares").join("index.json").exists(),
+            "lugares/index.json should exist"
+        );
+
+        let content = fs::read_to_string(dir.path().join("lugares").join("index.json")).unwrap();
+        assert_eq!(content.trim(), "[]", "lugares/index.json should be an empty array");
+    }
+
+    #[test]
+    fn test_crear_proyecto_metadata_has_places_index() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let meta_raw = fs::read_to_string(dir.path().join(".config").join("metadata.json")).unwrap();
+        let meta: Metadata = serde_json::from_str(&meta_raw).unwrap();
+        assert!(meta.places_index.is_empty(), "places_index should be empty on create");
+    }
+
+    #[test]
+    fn test_listar_lugares_empty() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let result = listar_lugares(path);
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        assert_eq!(result.unwrap(), "[]");
+    }
+
+    #[test]
+    fn test_crear_lugar_y_listar() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let lugar_json = r#"{
+            "id": "torre-norte",
+            "name": "Torre Norte",
+            "description": "Una torre alta en el norte del reino"
+        }"#;
+
+        let result = crear_lugar(path.clone(), lugar_json.to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        // Verify file exists
+        let lugar_file = dir.path().join("lugares").join("torre-norte.json");
+        assert!(lugar_file.exists(), "Place file should exist");
+
+        // Verify index
+        let index_raw = listar_lugares(path.clone()).unwrap();
+        let index: Vec<LugarIndexItem> = serde_json::from_str(&index_raw).unwrap();
+        assert_eq!(index.len(), 1);
+        assert_eq!(index[0].id, "torre-norte");
+        assert_eq!(index[0].name, "Torre Norte");
+    }
+
+    #[test]
+    fn test_crear_lugar_rechaza_duplicado() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let lugar_json = r#"{"id": "plaza", "name": "Plaza Central"}"#;
+        let _ = crear_lugar(path.clone(), lugar_json.to_string());
+
+        let result = crear_lugar(path.clone(), lugar_json.to_string());
+        assert!(result.is_err(), "Expected Err for duplicate");
+        let err = result.unwrap_err();
+        assert!(err.contains("ya existe"), "Should mention duplicate: {}", err);
+    }
+
+    #[test]
+    fn test_cargar_lugar_returns_json() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let lugar_json = r#"{
+            "id": "biblioteca",
+            "name": "Gran Biblioteca",
+            "description": "Contiene todos los libros del reino"
+        }"#;
+
+        let _ = crear_lugar(path.clone(), lugar_json.to_string());
+
+        let result = cargar_lugar(path.clone(), "biblioteca".to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let loaded: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(loaded["id"], "biblioteca");
+        assert_eq!(loaded["name"], "Gran Biblioteca");
+        assert_eq!(loaded["description"], "Contiene todos los libros del reino");
+    }
+
+    #[test]
+    fn test_cargar_lugar_not_found() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let result = cargar_lugar(path, "inexistente".to_string());
+        assert!(result.is_err(), "Expected Err for missing place");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("no encontrado"),
+            "Should mention not found: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_actualizar_lugar_overwrites() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let original = r#"{
+            "id": "taberna",
+            "name": "Taberna del Lobo",
+            "description": "Un lugar oscuro"
+        }"#;
+
+        let _ = crear_lugar(path.clone(), original.to_string());
+
+        let updated = r#"{
+            "id": "taberna",
+            "name": "Taberna del Lobo Blanco",
+            "description": "Renovada y luminosa ahora"
+        }"#;
+
+        let result = actualizar_lugar(
+            path.clone(),
+            "taberna".to_string(),
+            updated.to_string(),
+        );
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        // Verify file content
+        let loaded = cargar_lugar(path.clone(), "taberna".to_string()).unwrap();
+        let lugar: serde_json::Value = serde_json::from_str(&loaded).unwrap();
+        assert_eq!(lugar["name"], "Taberna del Lobo Blanco");
+        assert_eq!(lugar["description"], "Renovada y luminosa ahora");
+
+        // Verify index was updated with new name
+        let index_raw = listar_lugares(path.clone()).unwrap();
+        let index: Vec<LugarIndexItem> = serde_json::from_str(&index_raw).unwrap();
+        assert_eq!(index[0].name, "Taberna del Lobo Blanco");
+    }
+
+    #[test]
+    fn test_eliminar_lugar_limpia() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let _ = crear_lugar(
+            path.clone(),
+            r#"{"id": "muelle", "name": "Muelle Viejo"}"#.to_string(),
+        );
+
+        let result = eliminar_lugar(path.clone(), "muelle".to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        // File must be gone
+        assert!(
+            !dir.path().join("lugares").join("muelle.json").exists(),
+            "Place file should be deleted"
+        );
+
+        // Index must be empty
+        let index_raw = listar_lugares(path).unwrap();
+        let index: Vec<LugarIndexItem> = serde_json::from_str(&index_raw).unwrap();
+        assert!(index.is_empty(), "Index should be empty after deletion");
     }
 
     // ========================================================================

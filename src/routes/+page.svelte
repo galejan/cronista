@@ -10,24 +10,28 @@
   import { t, setLang, lang } from "$lib/i18n.svelte";
   import {
     actualizarFuenteProyecto,
+    actualizarLugar,
     actualizarPersonaje,
     actualizarEventoTimeline,
     agregarEventoTimeline,
     cargarCapitulo,
     cargarConfigRemoto,
     cargarIndice,
+    cargarLugar,
     cargarNota,
     cargarPersonaje,
     cargarTimeline,
     configurarRemoto,
     crearCapitulo,
     crearCheckpoint,
+    crearLugar,
     crearNota,
     crearPersonaje,
     crearProyecto,
     detectarGit,
     eliminarCapitulo,
     eliminarEventoTimeline,
+    eliminarLugar,
     exportarProyectoMd,
     exportarProyectoZip,
     eliminarDirectorioGit,
@@ -36,6 +40,7 @@
     guardarCapitulo,
     importarProyecto,
     inicializarGit,
+    listarLugares,
     listarNotas,
     listarPersonajes,
     marcarProyectoCronInsta,
@@ -56,7 +61,6 @@
   const APP_VERSION = pkg.version;
 
   // ── Phosphor Icons (direct-path imports for tree-shaking) ─────
-  import Article from "phosphor-svelte/lib/Article";
   import ArrowRight from "phosphor-svelte/lib/ArrowRight";
   import BookOpen from "phosphor-svelte/lib/BookOpen";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
@@ -76,9 +80,10 @@
   import GitBranch from "phosphor-svelte/lib/GitBranch";
   import Keyboard from "phosphor-svelte/lib/Keyboard";
   import Moon from "phosphor-svelte/lib/Moon";
-  import Note from "phosphor-svelte/lib/Note";
+  import MapTrifold from "phosphor-svelte/lib/MapTrifold";
   import Notebook from "phosphor-svelte/lib/Notebook";
   import NotePencil from "phosphor-svelte/lib/NotePencil";
+  import Notepad from "phosphor-svelte/lib/Notepad";
   import Package from "phosphor-svelte/lib/Package";
   import PencilSimple from "phosphor-svelte/lib/PencilSimple";
   import Plus from "phosphor-svelte/lib/Plus";
@@ -89,7 +94,6 @@
   import Sun from "phosphor-svelte/lib/Sun";
   import User from "phosphor-svelte/lib/User";
   import UserPlus from "phosphor-svelte/lib/UserPlus";
-  import Users from "phosphor-svelte/lib/Users";
   import Warning from "phosphor-svelte/lib/Warning";
 
   import X from "phosphor-svelte/lib/X";
@@ -375,7 +379,7 @@
   }>();
 
   // ── Sidebar tab state ───────────────────────────────────────
-  let activeTab = $state<"capitulos" | "personajes" | "notas">("capitulos");
+  let activeTab = $state<"capitulos" | "personajes" | "notas" | "timeline" | "lugares">("capitulos");
 
   // ── Characters state ────────────────────────────────────────
   let personajes = $state<{ id: string; name: string }[]>([]);
@@ -396,7 +400,6 @@
 
   // ── Timeline state ──────────────────────────────────────────
   let timeline = $state<Record<string, any>[]>([]);
-  let timelineVisible = $state(false);
   let eventoFormVisible = $state(false);
   let eventoExpandido = $state<string | null>(null);
   let nuevoEventoFecha = $state("");
@@ -405,6 +408,14 @@
   let nuevoEventoPersonajes = $state<string[]>([]);
   let nuevoEventoCapitulos = $state<string[]>([]);
   let eventoEditando = $state<string | null>(null); // event ID being edited, or null for new
+
+  // ── Places state ────────────────────────────────────────────
+  let lugares = $state<{ id: string; name: string }[]>([]);
+  let lugarFormVisible = $state(false);
+  let lugarNuevoNombre = $state("");
+  let lugarNuevaDescripcion = $state("");
+  let lugarExpandido = $state<string | null>(null);
+  let lugarEditando = $state<Record<string, any> | null>(null);
 
   // ── Debounced auto-save (2 s after last keystroke) ──────────
   const save = debounce(async () => {
@@ -632,6 +643,53 @@
     } catch (e) {
       console.error("[cron-insta] Add event from context failed:", e);
       alert(`${t("timeline.addError")} ${e}`);
+    }
+  }
+
+  async function handleAddToPlace(): Promise<void> {
+    if (!projectPath) return;
+    const text = contextMenu.selectedText;
+    if (!text.trim()) return;
+
+    const name = prompt(t("context.placePrompt"));
+    if (!name?.trim()) return;
+
+    try {
+      // Search for existing place by name
+      const raw = await listarLugares(projectPath);
+      const places: { id: string; name: string }[] = JSON.parse(raw);
+      let found = places.find((p) => p.name === name.trim());
+
+      if (!found) {
+        // Create a new place if not found
+        const id = name
+          .trim()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        const lugar = {
+          id,
+          name: name.trim(),
+          description: text,
+        };
+        await crearLugar(projectPath, JSON.stringify(lugar));
+        await refreshLugares();
+        return;
+      }
+
+      // Append text to existing place description
+      const placeRaw = await cargarLugar(projectPath, found.id);
+      const place = JSON.parse(placeRaw);
+      place.description = place.description
+        ? place.description + "\n" + text
+        : text;
+      await actualizarLugar(projectPath, found.id, JSON.stringify(place));
+      await refreshLugares();
+    } catch (e) {
+      console.error("[cron-insta] Add to place failed:", e);
+      alert(`${t("places.saveError")} ${e}`);
     }
   }
 
@@ -874,7 +932,9 @@
     notas = [];
     activeNote = "";
     timeline = [];
-    timelineVisible = false;
+    lugares = [];
+    lugarExpandido = null;
+    lugarEditando = null;
     characterDocked = null;
     gitEnabled = false;
     gitStatus = "unknown";
@@ -1277,6 +1337,95 @@
     return personajes.find(p => p.id === id)?.name ?? id;
   }
 
+  // ── Places CRUD ─────────────────────────────────────────────
+
+  async function refreshLugares(): Promise<void> {
+    if (!projectPath) return;
+    try {
+      const raw = await listarLugares(projectPath);
+      lugares = JSON.parse(raw);
+    } catch (e) {
+      console.error("[cron-insta] Failed to list places:", e);
+      lugares = [];
+    }
+  }
+
+  async function crearLugarHandler(): Promise<void> {
+    if (!lugarNuevoNombre.trim()) {
+      alert(t("places.nameRequired"));
+      return;
+    }
+    const id = lugarNuevoNombre
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    const lugar = {
+      id,
+      name: lugarNuevoNombre.trim(),
+      description: lugarNuevaDescripcion.trim(),
+    };
+    try {
+      await crearLugar(projectPath, JSON.stringify(lugar));
+      lugarNuevoNombre = "";
+      lugarNuevaDescripcion = "";
+      lugarFormVisible = false;
+      await refreshLugares();
+    } catch (e) {
+      console.error("[cron-insta] Create place failed:", e);
+      alert(`${t("places.createError")} ${e}`);
+    }
+  }
+
+  async function seleccionarLugar(id: string): Promise<void> {
+    save.trigger();
+    if (lugarExpandido === id) {
+      lugarExpandido = null;
+      lugarEditando = null;
+      return;
+    }
+    try {
+      const raw = await cargarLugar(projectPath, id);
+      lugarEditando = JSON.parse(raw);
+      lugarExpandido = id;
+    } catch (e) {
+      console.error("[cron-insta] Load place failed:", e);
+    }
+  }
+
+  async function guardarLugarHandler(): Promise<void> {
+    if (!lugarEditando) return;
+    try {
+      await actualizarLugar(
+        projectPath,
+        lugarEditando.id,
+        JSON.stringify(lugarEditando),
+      );
+      lugarExpandido = null;
+      lugarEditando = null;
+      await refreshLugares();
+    } catch (e) {
+      console.error("[cron-insta] Update place failed:", e);
+      alert(`${t("places.saveError")} ${e}`);
+    }
+  }
+
+  async function eliminarLugarHandler(id: string): Promise<void> {
+    if (!confirm(t("places.deleteConfirm"))) return;
+    try {
+      await eliminarLugar(projectPath, id);
+      lugarExpandido = null;
+      lugarEditando = null;
+      await refreshLugares();
+    } catch (e) {
+      console.error("[cron-insta] Delete place failed:", e);
+      alert(`${t("places.deleteError")} ${e}`);
+    }
+  }
+
   // ── Drag-and-drop reorder ────────────────────────────────────
   let dragId = $state<string | null>(null);
 
@@ -1336,6 +1485,7 @@
       refreshPersonajes();
       refreshNotas();
       refreshTimeline();
+      refreshLugares();
     }
   });
 
@@ -1528,25 +1678,17 @@
       return;
     }
 
-    // Ctrl+T — cycle sidebar tabs: capítulos → personajes → notas → capítulos
+    // Ctrl+T — cycle sidebar tabs: capítulos → personajes → notas → timeline → lugares
     if (e.ctrlKey && !e.shiftKey && (e.key === "t" || e.key === "T")) {
       e.preventDefault();
-      const order: Array<"capitulos" | "personajes" | "notas"> = ["capitulos", "personajes", "notas"];
+      const order: string[] = ["capitulos", "personajes", "notas", "timeline", "lugares"];
       const idx = order.indexOf(activeTab);
-      activeTab = order[(idx + 1) % order.length];
+      activeTab = order[(idx + 1) % order.length] as typeof activeTab;
       // Focus first item in the new tab so arrow keys work immediately
       setTimeout(() => {
         const firstBtn = document.querySelector<HTMLElement>(".sidebar-content button.chapter-link");
         firstBtn?.focus();
       }, 0);
-      return;
-    }
-
-    // Ctrl+L — toggle timeline visibility
-    if (e.ctrlKey && !e.shiftKey && (e.key === "l" || e.key === "L")) {
-      e.preventDefault();
-      timelineVisible = !timelineVisible;
-      if (timelineVisible) refreshTimeline();
       return;
     }
 
@@ -1628,17 +1770,31 @@
         class="tab"
         class:active={activeTab === "capitulos"}
         onclick={() => { pendingDelete = null; activeTab = "capitulos"; activeNote = ""; }}
-      ><Article size={18} weight="light" color="currentColor" /> {t("tabs.chapters")}</button>
+      ><Notebook size={18} weight="light" color="currentColor" /> {t("tabs.chapters")}</button>
       <button
         class="tab"
         class:active={activeTab === "personajes"}
         onclick={() => { pendingDelete = null; activeTab = "personajes"; }}
-      ><Users size={18} weight="light" color="currentColor" /> {t("tabs.characters")}</button>
+      ><User size={18} weight="light" color="currentColor" /> {t("tabs.characters")}</button>
       <button
         class="tab"
         class:active={activeTab === "notas"}
         onclick={() => { pendingDelete = null; activeTab = "notas"; }}
-      ><Note size={18} weight="light" color="currentColor" /> {t("tabs.notes")}</button>
+      ><Notepad size={18} weight="light" color="currentColor" /> {t("tabs.notes")}</button>
+      <button
+        class="tab"
+        class:active={activeTab === "timeline"}
+        onclick={() => { pendingDelete = null; activeTab = "timeline"; }}
+      ><Clock size={18} weight="light" color="currentColor" /> {t("tabs.timeline")}
+        {#if timeline.length > 0}
+          <span class="timeline-badge">{timeline.length}</span>
+        {/if}
+      </button>
+      <button
+        class="tab"
+        class:active={activeTab === "lugares"}
+        onclick={() => { pendingDelete = null; activeTab = "lugares"; }}
+      ><MapTrifold size={18} weight="light" color="currentColor" /> {t("tabs.places")}</button>
     </nav>
 
     <div class="sidebar-content">
@@ -1900,27 +2056,10 @@
           </button>
         </div>
       {/if}
-    </div>
 
-    <!-- ═══ Timeline — between content and footer, expands upward ═══ -->
-    <div class="timeline-section">
-      <button
-        class="timeline-toggle"
-        onclick={() => { timelineVisible = !timelineVisible; if (timelineVisible) refreshTimeline(); }}
-      >
-        {#if timelineVisible}
-          <CaretDown size={16} weight="light" color="currentColor" />
-        {:else}
-          <CaretRight size={16} weight="light" color="currentColor" />
-        {/if}
-        {t("timeline.title")}
-        {#if timeline.length > 0}
-          <span class="timeline-badge">{timeline.length}</span>
-        {/if}
-      </button>
-
-      {#if timelineVisible}
-        <div class="timeline-content">
+      <!-- ═══ Timeline tab ═══ -->
+      {#if activeTab === "timeline"}
+        <div class="tab-panel">
           {#if timeline.length > 0}
             <ul class="timeline-list">
               {#each timeline as evt}
@@ -2065,6 +2204,81 @@
           {:else}
             <button class="btn-add" onclick={() => { cancelarEdicion(); eventoFormVisible = true; }}>
               <Plus size={16} weight="light" color="currentColor" /> {t("timeline.newEvent")}
+            </button>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- ═══ Places tab ═══ -->
+      {#if activeTab === "lugares"}
+        <div class="tab-panel">
+          {#if lugares.length > 0}
+            <ul class="chapter-list" role="listbox" onkeydown={handleListKeydown}>
+              {#each lugares as l}
+                <li>
+                  <button
+                    class="chapter-link"
+                    class:active-chapter={lugarExpandido === l.id}
+                    onclick={() => seleccionarLugar(l.id)}
+                  >
+                    {l.name}
+                  </button>
+
+                  {#if lugarExpandido === l.id && lugarEditando}
+                    <div class="inline-form">
+                      <label class="field-label" for="place-name-{l.id}">{t("places.namePlaceholder")}</label>
+                      <input
+                        id="place-name-{l.id}"
+                        class="field-input"
+                        type="text"
+                        bind:value={lugarEditando.name}
+                      />
+
+                      <label class="field-label" for="place-desc-{l.id}">{t("places.descriptionPlaceholder")}</label>
+                      <textarea
+                        id="place-desc-{l.id}"
+                        class="field-textarea"
+                        bind:value={lugarEditando.description}
+                        rows="3"
+                        placeholder={t("places.descriptionPlaceholder")}
+                      ></textarea>
+
+                      <div class="form-actions">
+                        <button class="btn-sm btn-primary" onclick={guardarLugarHandler}>{t("places.save")}</button>
+                        <button class="btn-sm btn-danger" onclick={() => eliminarLugarHandler(l.id)}>{t("places.delete")}</button>
+                      </div>
+                    </div>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="empty-hint">{t("places.empty")}</p>
+          {/if}
+
+          {#if lugarFormVisible}
+            <div class="inline-form">
+              <input
+                class="field-input"
+                type="text"
+                placeholder={t("places.namePlaceholder")}
+                bind:value={lugarNuevoNombre}
+                onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter") crearLugarHandler(); }}
+              />
+              <textarea
+                class="field-textarea"
+                placeholder={t("places.descriptionPlaceholder")}
+                bind:value={lugarNuevaDescripcion}
+                rows="2"
+              ></textarea>
+              <div class="form-actions">
+                <button class="btn-sm btn-primary" onclick={crearLugarHandler}>{t("places.create")}</button>
+                <button class="btn-sm" onclick={() => lugarFormVisible = false}>{t("common.cancel")}</button>
+              </div>
+            </div>
+          {:else}
+            <button class="btn-add" onclick={() => lugarFormVisible = true}>
+              <MapTrifold size={16} weight="light" color="currentColor" /> {t("places.new")}
             </button>
           {/if}
         </div>
@@ -2435,6 +2649,11 @@
       </div>
 
       <div class="help-section">
+        <h3><MapTrifold size={16} weight="light" color="currentColor" aria-hidden="true" /> {t("help.placesTitle")}</h3>
+        <p>{t("help.placesDesc")}</p>
+      </div>
+
+      <div class="help-section">
         <h3><GitBranch size={16} weight="light" color="currentColor" aria-hidden="true" /> {t("help.versioningTitle")}</h3>
         <p>{t("help.versioningDesc")}</p>
       </div>
@@ -2468,7 +2687,6 @@
           <tr><td><kbd>Ctrl+O</kbd></td><td>{t("help.shortcuts.openProject")}</td></tr>
           <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>{t("help.shortcuts.newProject")}</td></tr>
           <tr><td><kbd>Ctrl+T</kbd></td><td>{t("help.shortcuts.cycleTabs")}</td></tr>
-          <tr><td><kbd>Ctrl+L</kbd></td><td>{t("help.shortcuts.toggleTimeline")}</td></tr>
           <tr><td><kbd>Ctrl+Enter</kbd></td><td>{t("help.shortcuts.dockCharacter")}</td></tr>
           <tr><td><kbd>Ctrl+I</kbd></td><td>{t("help.shortcuts.importProject")}</td></tr>
           <tr><td><kbd>Ctrl+↑</kbd> / <kbd>Ctrl+↓</kbd></td><td>{t("help.shortcuts.applyHeading")}</td></tr>
@@ -2514,6 +2732,7 @@
   onSaveAsTrait={handleSaveAsTrait}
   onNewChapter={handleNewChapterFromContext}
   onAddAsEvent={handleAddAsEventFromContext}
+  onAddToPlace={handleAddToPlace}
 />
 
 <!-- Remote sync warning mini-dialog -->
@@ -3505,45 +3724,6 @@
   }
 
   /* ── Timeline section ──────────────────────────────────────── */
-  .timeline-section {
-    border-top: 1px solid #e2e8f0;
-    padding: 0.75rem 1rem;
-    flex-shrink: 0;
-    overflow-y: auto;
-    max-height: 40vh;
-  }
-
-  :global(.dark) .timeline-section {
-    border-top-color: #334155;
-  }
-
-  .timeline-toggle {
-    width: 100%;
-    text-align: left;
-    padding: 0.5rem 0;
-    border: none;
-    background: transparent;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: color 120ms;
-  }
-
-  .timeline-toggle:hover {
-    color: #1e293b;
-  }
-
-  :global(.dark) .timeline-toggle {
-    color: #94a3b8;
-  }
-  :global(.dark) .timeline-toggle:hover {
-    color: #e2e8f0;
-  }
-
   .timeline-badge {
     font-size: 0.6875rem;
     background: #e2e8f0;

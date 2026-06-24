@@ -12,6 +12,7 @@
     onSaveAsTrait: () => void;
     onNewChapter: () => void;
     onAddAsEvent: () => void;
+    onAddToPlace: () => void;
   }
 
   let {
@@ -25,6 +26,7 @@
     onSaveAsTrait = () => {},
     onNewChapter = () => {},
     onAddAsEvent = () => {},
+    onAddToPlace = () => {},
   }: Props = $props();
 
   let menuEl = $state<HTMLDivElement>();
@@ -187,6 +189,13 @@
           onclick={() => handleAction(onAddAsEvent)}
         >
           {t("context.addAsEvent")}
+        </button>
+        <button
+          class="ctx-item"
+          role="menuitem"
+          onclick={() => handleAction(onAddToPlace)}
+        >
+          {t("context.addToPlace")}
         </button>
       {/if}
     </div>

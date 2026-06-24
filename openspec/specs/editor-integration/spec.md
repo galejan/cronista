@@ -100,3 +100,35 @@ El sistema DEBE cargar el contenido de un capítulo mediante `cargar_capitulo`. 
 - DADO un proyecto sin el archivo "0001_prologo.md"
 - CUANDO se invoca `cargar_capitulo` para ese archivo
 - ENTONCES el comando retorna `Err(String)` indicando archivo no encontrado
+
+### Requisito: Menú Contextual "Agregar a Lugar"
+
+El menú contextual DEBE mostrar una opción "Agregar a lugar" cuando el usuario selecciona texto en el editor. Seleccionar esta opción DEBE pedir al usuario que elija un lugar existente o cree uno nuevo. El texto seleccionado DEBE agregarse al campo `description` del lugar elegido mediante `actualizar_lugar`.
+
+#### Escenario: Agregar texto seleccionado a un lugar existente
+
+- DADO que el usuario ha seleccionado "la torre del vigía" en el editor
+- CUANDO hace clic derecho y elige "Agregar a lugar" → selecciona "Torre Norte"
+- ENTONCES se invoca `actualizar_lugar` con la descripción actual del lugar + "\n" + el texto seleccionado
+- Y un toast de éxito confirma la actualización
+
+#### Escenario: Crear nuevo lugar desde el menú contextual
+
+- DADO que el usuario ha seleccionado texto y hace clic derecho
+- CUANDO elige "Agregar a lugar" → "Crear nuevo"
+- ENTONCES un prompt recoge el nombre y una descripción inicial opcional
+- Y se invoca `crear_lugar` con el texto seleccionado como descripción
+- Y el nuevo lugar aparece en la pestaña Lugares
+
+#### Escenario: Opción oculta cuando no hay texto seleccionado
+
+- DADO que el cursor está en el editor sin una selección activa
+- CUANDO se abre el menú contextual
+- ENTONCES "Agregar a lugar" NO aparece en el menú
+
+#### Escenario: Cancelar cierra el prompt sin efectos
+
+- DADO que el prompt "Agregar a lugar" está abierto
+- CUANDO el usuario cancela o hace clic fuera
+- ENTONCES no se invoca ningún comando IPC
+- Y el estado del editor no cambia

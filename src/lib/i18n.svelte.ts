@@ -125,6 +125,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "tabs.chapters": "Capítulos",
     "tabs.characters": "Personajes",
     "tabs.notes": "Notas",
+    "tabs.timeline": "Línea de tiempo",
+    "tabs.places": "Lugares",
 
     // ── Chapters ───────────────────────────────────────────
     "chapters.label": "Capítulos:",
@@ -162,6 +164,21 @@ const translations: Record<Lang, Record<string, string>> = {
     "characters.saveError": "Error al guardar personaje:",
     "characters.deleteError": "Error al eliminar personaje:",
     "characters.undock": "Desanclar",
+
+    // ── Places ─────────────────────────────────────────────
+    "places.empty": "Sin lugares aún.",
+    "places.new": "+ Nuevo lugar",
+    "places.namePlaceholder": "Nombre del lugar",
+    "places.nameRequired": "El nombre del lugar es obligatorio.",
+    "places.descriptionPlaceholder": "Descripción del lugar…",
+    "places.create": "Crear",
+    "places.save": "Guardar",
+    "places.edit": "Editar",
+    "places.delete": "Eliminar",
+    "places.deleteConfirm": "¿Eliminar este lugar?",
+    "places.createError": "Error al crear lugar:",
+    "places.saveError": "Error al guardar lugar:",
+    "places.deleteError": "Error al eliminar lugar:",
 
     // ── Notes ──────────────────────────────────────────────
     "notes.empty": "Sin notas aún.",
@@ -219,7 +236,10 @@ const translations: Record<Lang, Record<string, string>> = {
       "Ideas, recordatorios y análisis. Al hacer clic en una nota, su contenido se carga en el editor principal.",
     "help.timelineTitle": "Línea de tiempo",
     "help.timelineDesc":
-      "Línea temporal al final del panel lateral. Añadí eventos con fecha, descripción y vinculalos a personajes y capítulos.",
+      "Línea de tiempo como cuarta pestaña del panel lateral. Añadí eventos con fecha, descripción y vinculalos a personajes y capítulos.",
+    "help.placesTitle": "Lugares",
+    "help.placesDesc":
+      "Creá fichas de lugares (ciudades, edificios, escenarios). Cada lugar tiene nombre y descripción. Podés agregar texto del editor como descripción desde el menú contextual.",
     "help.versioningTitle": "Versionado",
     "help.versioningDesc":
       "Cron-Insta usa Git para mantener un historial de cambios. Al cerrar la aplicación se crea un checkpoint automático. El indicador en el panel lateral muestra el estado: verde (activo), naranja (sin inicializar), rojo (Git no instalado). La identidad Git y el repositorio remoto pueden editarse desde ⚙️ Configuración.",
@@ -248,8 +268,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.applyHeading": "Subir / bajar nivel de título (H1 ↔ H2 ↔ normal)",
     "help.shortcuts.fullscreen": "Pantalla completa",
     "help.shortcuts.toggleHelp": "Mostrar / ocultar esta ayuda",
-    "help.shortcuts.cycleTabs": "Navegar pestañas",
-    "help.shortcuts.toggleTimeline": "Mostrar/ocultar línea de tiempo",
+    "help.shortcuts.cycleTabs": "Navegar 5 pestañas",
     "help.shortcuts.fullSidebar": "Panel lateral a pantalla completa (referencia)",
     "help.shortcuts.dockCharacter": "Anclar/desanclar ficha del personaje",
     "help.shortcuts.importProject": "Importar proyecto desde ZIP",
@@ -359,6 +378,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "context.characterPrompt": "¿A qué personaje? (nombre exacto)",
     "context.traitSaved": "Rasgo guardado en {name}",
     "context.characterNotFound": "Personaje \"{name}\" no encontrado",
+    "context.addToPlace": "Agregar a lugar",
+    "context.placePrompt": "¿A qué lugar? (nombre exacto)",
   },
 
   en: {
@@ -450,6 +471,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "tabs.chapters": "Chapters",
     "tabs.characters": "Characters",
     "tabs.notes": "Notes",
+    "tabs.timeline": "Timeline",
+    "tabs.places": "Places",
 
     // ── Chapters ───────────────────────────────────────────
     "chapters.label": "Chapters:",
@@ -486,6 +509,21 @@ const translations: Record<Lang, Record<string, string>> = {
     "characters.saveError": "Error saving character:",
     "characters.deleteError": "Error deleting character:",
     "characters.undock": "Undock",
+
+    // ── Places ─────────────────────────────────────────────
+    "places.empty": "No places yet.",
+    "places.new": "+ New Place",
+    "places.namePlaceholder": "Place name",
+    "places.nameRequired": "Place name is required.",
+    "places.descriptionPlaceholder": "Place description…",
+    "places.create": "Create",
+    "places.save": "Save",
+    "places.edit": "Edit",
+    "places.delete": "Delete",
+    "places.deleteConfirm": "Delete this place?",
+    "places.createError": "Error creating place:",
+    "places.saveError": "Error saving place:",
+    "places.deleteError": "Error deleting place:",
 
     // ── Notes ──────────────────────────────────────────────
     "notes.empty": "No notes yet.",
@@ -543,7 +581,10 @@ const translations: Record<Lang, Record<string, string>> = {
       "Ideas, reminders, and analysis. Clicking a note loads its content into the main editor.",
     "help.timelineTitle": "Timeline",
     "help.timelineDesc":
-      "Timeline at the bottom of the sidebar. Add events with date, description, and link them to characters and chapters.",
+      "Timeline as the fourth sidebar tab. Add events with date, description, and link them to characters and chapters.",
+    "help.placesTitle": "Places",
+    "help.placesDesc":
+      "Create place cards (cities, buildings, settings). Each place has a name and description. You can add editor text as a description from the context menu.",
     "help.versioningTitle": "Versioning",
     "help.versioningDesc":
       "Cron-Insta uses Git to keep a change history. An automatic checkpoint is created when closing the app. The indicator in the sidebar shows status: green (active), orange (not initialized), red (Git not installed). Git identity and remote repo can be edited from ⚙️ Settings.",
@@ -572,8 +613,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.applyHeading": "Increase / decrease heading level (H1 ↔ H2 ↔ normal)",
     "help.shortcuts.fullscreen": "Full screen",
     "help.shortcuts.toggleHelp": "Show / hide this help",
-    "help.shortcuts.cycleTabs": "Cycle tabs",
-    "help.shortcuts.toggleTimeline": "Toggle timeline",
+    "help.shortcuts.cycleTabs": "Cycle 5 tabs",
     "help.shortcuts.fullSidebar": "Full-width sidebar (reference mode)",
     "help.shortcuts.dockCharacter": "Dock/undock character card",
     "help.shortcuts.importProject": "Import project from ZIP",
@@ -683,6 +723,8 @@ const translations: Record<Lang, Record<string, string>> = {
     "context.characterPrompt": "Which character? (exact name)",
     "context.traitSaved": "Trait saved to {name}",
     "context.characterNotFound": "Character \"{name}\" not found",
+    "context.addToPlace": "Add to place",
+    "context.placePrompt": "Which place? (exact name)",
   },
 };
 

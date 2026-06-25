@@ -315,6 +315,20 @@ export async function pushAhora(path: string): Promise<string> {
   return invoke("push_ahora", { path });
 }
 
+export interface RemoteStatus {
+  has_updates: boolean;
+  behind_count: number;
+}
+
+export async function verificarRemoto(path: string): Promise<RemoteStatus> {
+  const result = await invoke<string>("verificar_remoto", { path });
+  return JSON.parse(result);
+}
+
+export async function traerCambios(path: string): Promise<string> {
+  return invoke("traer_cambios", { path });
+}
+
 export async function sincronizarRemoto(path: string): Promise<string> {
   return invoke("sincronizar_remoto", { path });
 }

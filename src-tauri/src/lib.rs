@@ -2878,6 +2878,116 @@ fn push_ahora(app: tauri::AppHandle, path: String) -> Result<String, String> {
     }
 }
 
+/// Fetch from origin and check if the remote has new commits.
+///
+/// Runs `git fetch origin` (best-effort — network failures are silent)
+/// and compares `HEAD` with `origin/main`. Returns JSON with `has_updates`
+/// (bool) and `behind_count` (number of commits local is behind).
+#[tauri::command]
+fn verificar_remoto(path: String) -> Result<String, String> {
+    let project_path = Path::new(&path);
+    let git_path = find_git()?;
+
+    // Check remote exists
+    let url_output = system_command(&git_path)
+        .arg("remote")
+        .arg("get-url")
+        .arg("origin")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git remote get-url: {}", e))?;
+
+    if !url_output.status.success() {
+        return Ok(r#"{"has_updates":false,"behind_count":0}"#.to_string());
+    }
+
+    // Fetch (silent — network errors are non-fatal)
+    let _ = system_command(&git_path)
+        .arg("fetch")
+        .arg("origin")
+        .current_dir(project_path)
+        .output();
+
+    // Count commits behind
+    let count_output = system_command(&git_path)
+        .arg("rev-list")
+        .arg("--count")
+        .arg("HEAD..origin/main")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git rev-list: {}", e))?;
+
+    let behind_str = String::from_utf8_lossy(&count_output.stdout).trim().to_string();
+    let behind_count: u32 = behind_str.parse().unwrap_or(0);
+    let has_updates = behind_count > 0;
+
+    Ok(format!(
+        r#"{{"has_updates":{},"behind_count":{}}}"#,
+        has_updates, behind_count
+    ))
+}
+
+/// Pull changes from the remote repository.
+///
+/// Runs `git pull origin main`. On success, returns a message with the
+/// pull summary. On failure (conflicts, network), returns an error.
+#[tauri::command]
+fn traer_cambios(path: String) -> Result<String, String> {
+    let project_path = Path::new(&path);
+    let git_path = find_git()?;
+
+    // Check for local uncommitted changes — pull could overwrite
+    let status_output = system_command(&git_path)
+        .arg("status")
+        .arg("--porcelain")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git status: {}", e))?;
+
+    let has_changes = !String::from_utf8_lossy(&status_output.stdout).trim().is_empty();
+
+    if has_changes {
+        return Err(
+            "Hay cambios locales sin guardar. Guardá o descartá los cambios antes de sincronizar."
+                .to_string(),
+        );
+    }
+
+    let pull_output = system_command(&git_path)
+        .arg("pull")
+        .arg("origin")
+        .arg("main")
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Error al ejecutar git pull: {}", e))?;
+
+    if pull_output.status.success() {
+        let stdout = String::from_utf8_lossy(&pull_output.stdout);
+        let summary: String = stdout
+            .lines()
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join(" · ");
+        let msg = if summary.is_empty() {
+            "Cambios sincronizados desde el remoto.".to_string()
+        } else {
+            format!("Cambios sincronizados: {}", summary)
+        };
+        Ok(msg)
+    } else {
+        let stderr = String::from_utf8_lossy(&pull_output.stderr);
+        let stderr_str = stderr.trim();
+        if stderr_str.contains("CONFLICT") || stderr_str.contains("conflict") {
+            Err(format!(
+                "Hay conflictos al sincronizar. Resolvelos manualmente en la terminal:\n{}",
+                stderr_str
+            ))
+        } else {
+            Err(format!("Error al sincronizar: {}", stderr_str))
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -2935,6 +3045,8 @@ pub fn run() {
             sincronizar_remoto,
             reintentar_push,
             push_ahora,
+            verificar_remoto,
+            traer_cambios,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

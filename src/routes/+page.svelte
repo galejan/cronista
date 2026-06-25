@@ -51,6 +51,8 @@
     obtenerGitLog,
     reintentarPush,
     pushAhora,
+    verificarRemoto,
+    traerCambios,
     reordenarTimeline,
     setActiveProject,
     sincronizarRemoto,
@@ -277,6 +279,9 @@
   let remoteWarningVisible = $state(false);
   let remoteWarningDialog = $state(false);
   let pushReady = $state(false);
+  let hasRemote = $state(false);
+  let remoteBehind = $state(0);
+  let pullDialogOpen = $state(false);
 
   // ── Project Settings dialog ──────────────────────────────────
   let settingsOpen = $state(false);
@@ -967,6 +972,73 @@
     }
   }
 
+  /**
+   * Check if the remote has new commits and offer to pull them.
+   *
+   * Called after auto-detect on project open, and manually via the
+   * "Traer cambios" button. If the user declines, we warn about
+   * potential divergence.
+   */
+  async function verificarYOfrecerPull(path: string): Promise<void> {
+    try {
+      const status = await verificarRemoto(path);
+      if (status.has_updates && status.behind_count > 0) {
+        remoteBehind = status.behind_count;
+        pullDialogOpen = true;
+      }
+    } catch {
+      // Network or git error — silently skip
+    }
+  }
+
+  async function ejecutarPull(): Promise<void> {
+    if (!projectPath) return;
+    pullDialogOpen = false;
+    try {
+      const msg = await traerCambios(projectPath);
+      showToast(msg, "warning");
+      // Reload the project to reflect pulled changes
+      await abrirProyectoDesdePath(projectPath);
+    } catch (e) {
+      const errStr = String(e);
+      if (errStr.includes("sin guardar") || errStr.includes("uncommitted")) {
+        showToast(t("git.pullUncommitted"), "error");
+      } else {
+        showToast(t("git.pushFailed") + " " + errStr, "error");
+      }
+    }
+  }
+
+  function rechazarPull(): void {
+    pullDialogOpen = false;
+    remoteBehind = 0;
+    showToast(t("git.pullDenied"), "warning");
+  }
+
+  /** Reload the currently open project from disk (used after git pull). */
+  async function abrirProyectoDesdePath(path: string): Promise<void> {
+    try {
+      const raw = await cargarIndice(path);
+      const meta = JSON.parse(raw);
+      chapters = meta.chapters_order ?? [];
+      fontFamily = meta.font_family || "monospace";
+      await actualizarGitStatus(path);
+
+      // Reload current chapter or fallback to first
+      const stillExists = activeChapter && chapters.includes(activeChapter);
+      if (stillExists) {
+        await cargarCapituloActual(activeChapter!);
+      } else if (chapters.length > 0) {
+        await cargarCapituloActual(chapters[0]);
+      } else {
+        editorContent = "";
+        activeChapter = "";
+      }
+    } catch (e) {
+      console.error("[cron-insta] Failed to reload project:", e);
+    }
+  }
+
   /** Open an existing project by loading its metadata.json. */
   async function abrirProyecto(): Promise<void> {
     // Close current project first if one is open
@@ -994,6 +1066,8 @@
       fontFamily = meta.font_family || "monospace";
       await actualizarGitStatus(path);
       detectarYGuardarConfigGit(path); // fire-and-forget
+      // After a short delay (let auto-detect finish), check for remote updates
+      setTimeout(() => verificarYOfrecerPull(path), 1500);
       chapters = meta.chapters_order ?? [];
       console.log("[cron-insta] Project opened:", meta.project_name, chapters);
 
@@ -1139,6 +1213,7 @@
           const wasDisabled = remoteWarningVisible;
           remoteWarningVisible = !!(remote && !remote.push_enabled && remote.url);
           pushReady = !!(remote && remote.push_enabled && remote.url);
+          hasRemote = !!(remote && remote.url);
           // Show toast when push was just disabled
           if (!wasDisabled && remoteWarningVisible) {
             showToast(t("git.pushDisabled"), "warning");
@@ -1146,12 +1221,14 @@
         } catch {
           remoteWarningVisible = false;
           pushReady = false;
+          hasRemote = false;
         }
       } else {
         gitStatus = "not-initialized";
         gitEnabled = true; // Binary exists, just needs init
         remoteWarningVisible = false;
         pushReady = false;
+        hasRemote = false;
       }
     } catch {
       gitStatus = "unknown";
@@ -1635,6 +1712,7 @@
         fontFamily = meta.font_family || "monospace";
         await actualizarGitStatus(lastPath);
         detectarYGuardarConfigGit(lastPath); // fire-and-forget
+        setTimeout(() => verificarYOfrecerPull(lastPath), 1500);
         chapters = meta.chapters_order ?? [];
         console.log("[cron-insta] Project reopened:", meta.project_name, chapters);
 
@@ -2545,6 +2623,15 @@
               {#if gitStatus === "active"}
                 <span class="git-indicator git-active" title={t("git.activeTitle")}>🟢 {t("git.active")}</span>
                 <button class="git-log-link" onclick={cargarGitLog}>{t("git.viewSessions")} <ArrowRight size={16} weight="light" color="currentColor" /></button>
+                {#if hasRemote}
+                  <button
+                    class="pull-now-btn"
+                    onclick={() => { if (projectPath) verificarYOfrecerPull(projectPath); }}
+                    title={t("git.pullNowTitle")}
+                  >
+                    <DownloadSimple size={16} weight="light" color="currentColor" /> {t("git.pullNow")}
+                  </button>
+                {/if}
                 {#if pushReady}
                   <button
                     class="push-now-btn"
@@ -2987,6 +3074,32 @@
           }}
         >
           {t("git.toolbarRetry")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Pull dialog: remote has new commits -->
+{#if pullDialogOpen}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    role="dialog"
+    tabindex="-1"
+    aria-label={t("git.pullAvailable")}
+    onclick={rechazarPull}
+    onkeydown={(e) => e.key === "Escape" && rechazarPull()}
+  >
+    <div class="modal-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+      <h2>{t("git.pullAvailable")}</h2>
+      <p class="modal-desc">{t("git.pullAvailableDesc").replace("{count}", String(remoteBehind))}</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick={rechazarPull}>
+          {t("common.cancel")}
+        </button>
+        <button class="btn-primary" onclick={ejecutarPull}>
+          {t("git.pullNow")}
         </button>
       </div>
     </div>
@@ -4610,6 +4723,33 @@
 
   :global(.dark) .push-now-btn:hover {
     color: #6ee7b7;
+  }
+
+  .pull-now-btn {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #7c3aed;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .pull-now-btn:hover {
+    color: #6d28d9;
+  }
+
+  :global(.dark) .pull-now-btn {
+    color: #a78bfa;
+  }
+
+  :global(.dark) .pull-now-btn:hover {
+    color: #c4b5fd;
   }
 
   .git-log-panel {

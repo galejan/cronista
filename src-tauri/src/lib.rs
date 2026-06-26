@@ -25,14 +25,35 @@ fn system_command(program: &str) -> Command {
     let mut cmd = Command::new(program);
     cmd.stdin(std::process::Stdio::null());
     // Inherit SSH agent socket for git operations on Linux
-    if let Ok(sock) = std::env::var("SSH_AUTH_SOCK") {
+    let ssh_sock = std::env::var("SSH_AUTH_SOCK").ok()
+        .or_else(find_ssh_auth_sock_fallback);
+    if let Some(sock) = ssh_sock {
         cmd.env("SSH_AUTH_SOCK", sock);
     }
+    // Never prompt for password, timeout after 5s to avoid 30s hangs
+    cmd.env("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=5");
     #[cfg(target_os = "windows")]
     {
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
     }
     cmd
+}
+
+/// Fallback: try common SSH_AUTH_SOCK paths when the env var is not set.
+/// This covers desktop-launched Tauri apps that don't inherit the terminal env.
+fn find_ssh_auth_sock_fallback() -> Option<String> {
+    let uid = std::fs::read_to_string("/proc/self/loginuid").ok()?;
+    let uid = uid.trim();
+    let candidates = [
+        format!("/run/user/{}/keyring/ssh", uid),
+        format!("/run/user/{}/ssh-agent.socket", uid),
+    ];
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return Some(path.clone());
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------

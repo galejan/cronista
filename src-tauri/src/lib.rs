@@ -56,6 +56,13 @@ fn find_ssh_auth_sock_fallback() -> Option<String> {
     None
 }
 
+/// Check if SSH agent is available for git network operations.
+/// Returns `true` if `SSH_AUTH_SOCK` is set (env or fallback path).
+/// When unavailable, all SSH git ops (fetch, push) will fail — skip them early.
+fn ssh_available() -> bool {
+    std::env::var("SSH_AUTH_SOCK").is_ok() || find_ssh_auth_sock_fallback().is_some()
+}
+
 // ---------------------------------------------------------------------------
 // Data structures
 // ---------------------------------------------------------------------------
@@ -2046,19 +2053,16 @@ fn perform_commit(project_path: &Path) -> Result<String, String> {
 
 /// Internal helper: attempt to push to the configured remote.
 ///
-/// Reads push state from the project's `.config/metadata.json`. If push is
-/// disabled or no URL is configured, returns `Ok("")` (no-op).
+/// Reads the remote URL from git, runs `git push`, and implements the
+/// 3-strike rule (disables push after 3 consecutive failures).
 ///
-/// Implements 3-strike auto-disable: after 3 consecutive failures,
-/// `push_enabled` is set to `false` and the user is notified via a
-/// warning string.
-///
-/// **NOT a Tauri command** — called internally by `crear_checkpoint`
-/// and `do_checkpoint`.
+/// Called by `do_checkpoint` (close) and `push_ahora` (button).
+/// Does NOT check `push_enabled` — both callers are explicit user actions
+/// that should always attempt push when ahead of remote.
 fn sincronizar_checkpoint(_app: &tauri::AppHandle, path: &str) -> Result<String, String> {
     let project_path = Path::new(path);
 
-    // Read push state from project metadata
+    // Read state from project metadata (for 3-strike counter)
     let meta_path = project_path.join(".config").join("metadata.json");
     if !meta_path.exists() {
         return Ok("".to_string());
@@ -2073,10 +2077,6 @@ fn sincronizar_checkpoint(_app: &tauri::AppHandle, path: &str) -> Result<String,
         Ok(m) => m,
         Err(_) => return Ok("".to_string()),
     };
-
-    if !meta.push_enabled {
-        return Ok("".to_string());
-    }
 
     // Read remote URL from git
     let git_path = find_git()?;
@@ -2107,8 +2107,9 @@ fn sincronizar_checkpoint(_app: &tauri::AppHandle, path: &str) -> Result<String,
     eprintln!("git push output (sincronizar_checkpoint): {:?}", push_output);
 
     if push_output.status.success() {
-        // Success: reset counter
+        // Success: reset counter and re-enable (in case it was 3-strike disabled)
         meta.consecutive_failures = 0;
+        meta.push_enabled = true;
         meta.last_modified = Local::now().to_rfc3339();
         let json = serde_json::to_string_pretty(&meta)
             .map_err(|e| format!("Error serializing metadata: {}", e))?;
@@ -2143,13 +2144,12 @@ fn sincronizar_checkpoint(_app: &tauri::AppHandle, path: &str) -> Result<String,
 
 /// Fetch from origin and check if local is ahead of remote.
 ///
-/// Runs `git fetch origin` (best-effort — network failures are silent
-/// and treated as "not ahead") and compares `HEAD` with `origin/main`
-/// using `git rev-list --count --left-right`.
+/// Attempts `git fetch origin` (only when SSH agent is available).
+/// Compares `HEAD` with the upstream tracking branch using
+/// `git rev-list --count --left-right @{upstream}...HEAD`.
 ///
-/// Returns `true` when local has commits ahead of the remote (i.e. there
-/// is something to push). On any error (no network, no origin, no upstream
-/// branch, etc.) returns `Ok(false)` — never blocks the caller.
+/// Returns `true` when local has commits ahead of the remote. On any error
+/// (no network, no origin, no upstream branch, etc.) returns `Ok(false)`.
 fn check_ahead(project_path: &Path) -> Result<bool, String> {
     let git_path = match find_git() {
         Ok(p) => p,
@@ -2176,27 +2176,28 @@ fn check_ahead(project_path: &Path) -> Result<bool, String> {
         return Ok(false);
     }
 
-    // Fetch (best-effort — ignore errors, treat as "not ahead")
-    let _ = system_command(&git_path)
-        .arg("fetch")
-        .arg("origin")
-        .current_dir(project_path)
-        .output();
+    // Only fetch if SSH agent is available — otherwise skip (avoids 5s timeout)
+    if ssh_available() {
+        let _ = system_command(&git_path)
+            .arg("fetch")
+            .arg("origin")
+            .current_dir(project_path)
+            .output();
+    }
 
-    // Count ahead commits: git rev-list --count --left-right origin/main...HEAD
-    // Output format: "<ahead>\t<behind>"  (e.g. "3\t0" means 3 ahead, 0 behind)
+    // Count ahead commits using @{upstream} (works with any branch name)
+    // Output format: "<ahead>\t<behind>"  (e.g. "3\t0" → 3 ahead, 0 behind)
     let count_output = system_command(&git_path)
         .arg("rev-list")
         .arg("--count")
         .arg("--left-right")
-        .arg("origin/main...HEAD")
+        .arg("@{upstream}...HEAD")
         .current_dir(project_path)
         .output();
 
     match count_output {
         Ok(o) if o.status.success() => {
             let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            // Parse the ahead count (first tab-separated field)
             let ahead: u32 = stdout
                 .split('\t')
                 .next()
@@ -2204,10 +2205,7 @@ fn check_ahead(project_path: &Path) -> Result<bool, String> {
                 .unwrap_or(0);
             Ok(ahead > 0)
         }
-        _ => {
-            // rev-list failed (e.g., no upstream branch, detached HEAD)
-            Ok(false)
-        }
+        _ => Ok(false),
     }
 }
 
@@ -2238,12 +2236,11 @@ fn count_words_in_chapters(project_path: &Path) -> usize {
 // Application entry point
 // ---------------------------------------------------------------------------
 
-/// Internal checkpoint — same logic as `crear_checkpoint` but callable
-/// from event handlers without going through the IPC layer.
+/// Internal checkpoint for close handler.
 ///
-/// After committing, attempts auto-push via `sincronizar_checkpoint`.
-/// Push warnings are silently dropped (the close handler cannot surface
-/// UI feedback to the user).
+/// Commits local changes (best-effort), then checks if local is ahead of
+/// the remote and pushes if so. Push warnings/errors are logged to stderr
+/// (the close handler cannot surface UI to the user).
 fn do_checkpoint(app: &tauri::AppHandle, project_path: &str) -> Result<String, String> {
     let path_buf = Path::new(project_path);
 
@@ -2982,11 +2979,8 @@ fn reintentar_push(_app: tauri::AppHandle, path: String) -> Result<String, Strin
 /// Save a checkpoint and push to the configured remote now.
 ///
 /// Commits all pending changes (same as `crear_checkpoint`) and then
-/// pushes to `origin`. Returns a combined result so the user gets
-/// immediate feedback in the UI.
-///
-/// When `push_enabled` is false or no remote is configured, push is
-/// silently skipped — same behaviour as the close-time `do_checkpoint`.
+/// checks if local is ahead of remote. If ahead, pushes to `origin`.
+/// Returns a combined result so the user gets immediate feedback.
 #[tauri::command]
 fn push_ahora(app: tauri::AppHandle, path: String) -> Result<String, String> {
     let project_path = Path::new(&path);

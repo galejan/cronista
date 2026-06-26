@@ -40,6 +40,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate SvelteKit types
+        run: pnpm svelte-kit sync
+
       - name: Build Tauri (Linux)
         run: pnpm tauri build --bundles deb,rpm
 
@@ -77,6 +80,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate SvelteKit types
+        run: pnpm svelte-kit sync
 
       - name: Build Tauri (Windows)
         run: pnpm tauri build --bundles msi,nsis
@@ -116,6 +122,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate SvelteKit types
+        run: pnpm svelte-kit sync
 
       - name: Build Tauri (macOS)
         run: pnpm tauri build --bundles dmg

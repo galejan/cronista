@@ -2173,39 +2173,76 @@ fn check_ahead(project_path: &Path) -> Result<bool, String> {
     };
 
     if !remote_exists {
+        eprintln!("[check_ahead] no origin remote configured — skipping push");
         return Ok(false);
     }
 
-    // Only fetch if SSH agent is available — otherwise skip (avoids 5s timeout)
+    // Only fetch if SSH agent is available
     if ssh_available() {
-        let _ = system_command(&git_path)
+        eprintln!("[check_ahead] SSH agent found, fetching origin...");
+        let fetch_result = system_command(&git_path)
             .arg("fetch")
             .arg("origin")
             .current_dir(project_path)
             .output();
+        match fetch_result {
+            Ok(o) if o.status.success() => eprintln!("[check_ahead] fetch OK"),
+            _ => eprintln!("[check_ahead] fetch failed (non-fatal)"),
+        }
+    } else {
+        eprintln!("[check_ahead] no SSH agent available, skipping fetch (using local tracking branch)");
     }
 
-    // Count ahead commits using @{upstream} (works with any branch name)
-    // Output format: "<ahead>\t<behind>"  (e.g. "3\t0" → 3 ahead, 0 behind)
-    let count_output = system_command(&git_path)
-        .arg("rev-list")
-        .arg("--count")
-        .arg("--left-right")
-        .arg("@{upstream}...HEAD")
+    // Check if the current branch has an upstream configured
+    let upstream_output = system_command(&git_path)
+        .arg("rev-parse")
+        .arg("--abbrev-ref")
+        .arg("--symbolic-full-name")
+        .arg("@{upstream}")
         .current_dir(project_path)
         .output();
 
-    match count_output {
+    let upstream_ref = match upstream_output {
         Ok(o) if o.status.success() => {
-            let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            let ahead: u32 = stdout
-                .split('\t')
-                .next()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
+            let name = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            eprintln!("[check_ahead] upstream ref: {}", name);
+            name
+        }
+        _ => {
+            let stderr = upstream_output.ok()
+                .map(|o| String::from_utf8_lossy(&o.stderr).trim().to_string())
+                .unwrap_or_default();
+            eprintln!("[check_ahead] no upstream branch configured: {}", stderr);
+            return Ok(false);
+        }
+    };
+
+    // Count how many commits HEAD is ahead of the upstream
+    let ahead_output = system_command(&git_path)
+        .arg("rev-list")
+        .arg("--count")
+        .arg("HEAD")
+        .arg(format!("^{}", upstream_ref))
+        .current_dir(project_path)
+        .output();
+
+    match ahead_output {
+        Ok(o) if o.status.success() => {
+            let count = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            let ahead: u32 = count.parse().unwrap_or(0);
+            eprintln!("[check_ahead] commits ahead: {} — {}", ahead,
+                if ahead > 0 { "WILL PUSH" } else { "up to date, nothing to push" });
             Ok(ahead > 0)
         }
-        _ => Ok(false),
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
+            eprintln!("[check_ahead] rev-list failed: {}", stderr);
+            Ok(false)
+        }
+        Err(e) => {
+            eprintln!("[check_ahead] rev-list error: {}", e);
+            Ok(false)
+        }
     }
 }
 
@@ -2243,17 +2280,23 @@ fn count_words_in_chapters(project_path: &Path) -> usize {
 /// (the close handler cannot surface UI to the user).
 fn do_checkpoint(app: &tauri::AppHandle, project_path: &str) -> Result<String, String> {
     let path_buf = Path::new(project_path);
+    eprintln!("[do_checkpoint] Starting checkpoint for: {}", project_path);
 
     // 1) Commit local changes (best-effort — never skips push)
     let commit_result = perform_commit(path_buf);
+    eprintln!("[do_checkpoint] Commit result: {:?}", commit_result);
 
-    // 2) Auto-push if remote is configured and we have commits ahead
+    // 2) Check ahead and push if needed
+    eprintln!("[do_checkpoint] Calling check_ahead...");
     match check_ahead(path_buf) {
         Ok(true) => {
+            eprintln!("[do_checkpoint] check_ahead says ahead! Calling sincronizar_checkpoint...");
             match sincronizar_checkpoint(app, project_path) {
                 Ok(warning) => {
                     if !warning.is_empty() {
                         eprintln!("[do_checkpoint] Push warning: {}", warning);
+                    } else {
+                        eprintln!("[do_checkpoint] Push completed successfully");
                     }
                 }
                 Err(e) => {
@@ -2262,7 +2305,7 @@ fn do_checkpoint(app: &tauri::AppHandle, project_path: &str) -> Result<String, S
             }
         }
         Ok(false) => {
-            // Not ahead or no remote configured — nothing to push
+            eprintln!("[do_checkpoint] check_ahead says NOT ahead — no push needed");
         }
         Err(e) => {
             eprintln!("[do_checkpoint] check_ahead error: {}", e);

@@ -2110,13 +2110,6 @@ fn sincronizar_checkpoint(_app: &tauri::AppHandle, path: &str) -> Result<String,
         // Success: reset counter and re-enable (in case it was 3-strike disabled)
         meta.consecutive_failures = 0;
         meta.push_enabled = true;
-        meta.last_modified = Local::now().to_rfc3339();
-        let json = serde_json::to_string_pretty(&meta)
-            .map_err(|e| format!("Error serializing metadata: {}", e))?;
-        std::fs::write(&meta_path, json)
-            .map_err(|e| format!("Error writing metadata: {}", e))?;
-
-        Ok("".to_string())
     } else {
         // Failure: increment counter, apply 3-strike rule
         meta.consecutive_failures += 1;
@@ -2138,7 +2131,53 @@ fn sincronizar_checkpoint(_app: &tauri::AppHandle, path: &str) -> Result<String,
         std::fs::write(&meta_path, json)
             .map_err(|e| format!("Error writing metadata: {}", e))?;
 
-        Ok(warning)
+        // Commit metadata changes so git status stays clean
+        commit_metadata_file(project_path, &git_path);
+        return Ok(warning);
+    }
+
+    // Common: write metadata after push success
+    meta.last_modified = Local::now().to_rfc3339();
+    let json = serde_json::to_string_pretty(&meta)
+        .map_err(|e| format!("Error serializing metadata: {}", e))?;
+    std::fs::write(&meta_path, json)
+        .map_err(|e| format!("Error writing metadata: {}", e))?;
+
+    // Commit metadata changes so git status stays clean
+    commit_metadata_file(project_path, &git_path);
+
+    Ok("".to_string())
+}
+
+/// Stage and commit the `.config/metadata.json` file after a push state update.
+/// This keeps the working tree clean — metadata changes are always versioned
+/// alongside the content changes they describe.
+fn commit_metadata_file(project_path: &Path, git_exe: &str) {
+    // Stage metadata.json
+    let meta_rel = Path::new(".config").join("metadata.json");
+    let add_result = system_command(git_exe)
+        .arg("add")
+        .arg(&meta_rel)
+        .current_dir(project_path)
+        .output();
+    match add_result {
+        Ok(o) if o.status.success() => eprintln!("[commit_metadata] staged OK"),
+        _ => {
+            eprintln!("[commit_metadata] git add failed (non-fatal)");
+            return;
+        }
+    }
+
+    // Commit metadata. If nothing changed (already committed), "nothing to commit" is fine.
+    let commit_result = system_command(git_exe)
+        .arg("commit")
+        .arg("-m")
+        .arg("cron-insta: actualizar estado de sincronización")
+        .current_dir(project_path)
+        .output();
+    match commit_result {
+        Ok(o) if o.status.success() => eprintln!("[commit_metadata] committed OK"),
+        _ => eprintln!("[commit_metadata] git commit skipped (no metadata changes)"),
     }
 }
 

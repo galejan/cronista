@@ -589,6 +589,15 @@ fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_fami
     let path = path.trim_end_matches('/').trim_end_matches('\\').to_string();
     let base = Path::new(&path);
 
+    // Reject if a project already exists at this path
+    let metadata_path = base.join(".config").join("metadata.json");
+    if metadata_path.exists() {
+        return Err(format!(
+            "PROJECT_ALREADY_EXISTS:Ya existe un proyecto en '{}'. ¿Querés abrirlo en lugar de crear uno nuevo?",
+            base.display()
+        ));
+    }
+
     // Create base directory
     std::fs::create_dir_all(base)
         .map_err(|e| format!("No se pudo crear el directorio del proyecto: {}", e))?;

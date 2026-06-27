@@ -1042,6 +1042,25 @@
         await refreshChapters();
       } catch (e) {
         console.error("[cron-insta] Failed to create project:", e);
+        const msg = String(e);
+        if (msg.startsWith("PROJECT_ALREADY_EXISTS:")) {
+          const desc = msg.replace("PROJECT_ALREADY_EXISTS:", "");
+          const shouldOpen = await ask(desc);
+          if (shouldOpen) {
+            try {
+              projectPath = path;
+              setActiveProject(path);
+              await actualizarGitStatus(path);
+              await refreshChapters();
+              return;
+            } catch (openErr) {
+              console.error("[cron-insta] Failed to open existing project:", openErr);
+              await message(`${t("dialog.openProjectError")} ${openErr}`);
+              return;
+            }
+          }
+          return;
+        }
         await message(`${t("dialog.createProjectError")} ${e}`);
         return;
       }

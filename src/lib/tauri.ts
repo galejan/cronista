@@ -408,3 +408,8 @@ export async function listarMedia(path: string): Promise<string> {
 export async function copiarAMedia(projectPath: string, sourcePath: string): Promise<string> {
   return invoke("copiar_a_media", { proyectoPath: projectPath, sourcePath });
 }
+
+/** Read a media file and return it as a base64 data URL. */
+export async function leerMediaBase64(projectPath: string, filename: string): Promise<string> {
+  return invoke("leer_media_base64", { proyectoPath: projectPath, filename });
+}

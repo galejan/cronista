@@ -2101,6 +2101,30 @@ fn copiar_a_media(proyecto_path: String, source_path: String) -> Result<String, 
     Ok(dest.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string())
 }
 
+/// Read a media file and return it as a base64 data URL.
+#[tauri::command]
+fn leer_media_base64(proyecto_path: String, filename: String) -> Result<String, String> {
+    use std::io::Read;
+    let path = Path::new(&proyecto_path).join("media").join(&filename);
+    let mut file = std::fs::File::open(&path)
+        .map_err(|e| format!("Error abriendo archivo: {}", e))?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|e| format!("Error leyendo archivo: {}", e))?;
+    let ext = filename.split('.').last().unwrap_or("png").to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        _ => "image/png",
+    };
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
 // ---------------------------------------------------------------------------
 // Timeline — .config/timeline.json
 // ---------------------------------------------------------------------------
@@ -4117,6 +4141,7 @@ pub fn run() {
             eliminar_lugar,
             listar_media,
             copiar_a_media,
+            leer_media_base64,
             exportar_proyecto_zip,
             exportar_proyecto_md,
             importar_proyecto,

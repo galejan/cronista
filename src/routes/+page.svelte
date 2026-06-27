@@ -54,6 +54,7 @@
     iniciarSesionEscritura,
     listarLugares,
     listarMedia,
+    leerMediaBase64,
     copiarAMedia,
     listarNotas,
     listarPersonajes,
@@ -75,7 +76,6 @@
   import { PhysicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
   import { open, message, ask } from "@tauri-apps/plugin-dialog";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import { convertFileSrc } from "@tauri-apps/api/core";
   import pkg from "../../package.json";
   const APP_VERSION = pkg.version;
 
@@ -619,7 +619,19 @@
     try {
       const raw = await listarMedia(projectPath);
       mediaFiles = JSON.parse(raw);
+      // Preload thumbnails as data URLs
+      for (const f of mediaFiles) {
+        if (!mediaSrcCache[f.name]) {
+          try {
+            mediaSrcCache[f.name] = await leerMediaBase64(projectPath, f.name);
+          } catch { /* skip broken files */ }
+        }
+      }
     } catch { mediaFiles = []; }
+  }
+
+  function mediaUrl(filename: string): string {
+    return mediaSrcCache[filename] ?? '';
   }
 
   async function subirMedia(): Promise<void> {
@@ -640,10 +652,7 @@
     }
   }
 
-  function mediaSrc(filename: string): string {
-    // Use Tauri asset protocol for local files
-    return convertFileSrc(`${projectPath}/media/${filename}`, "asset");
-  }
+  let mediaSrcCache = $state<Record<string, string>>({});
 
   // ── Actual save logic (shared by debounced auto-save and manual button) ──
   async function doSave(): Promise<void> {
@@ -2967,7 +2976,7 @@
                   style="width:calc(50% - 0.25rem);cursor:pointer;border-radius:4px;overflow:hidden;border:none;background:transparent;padding:0;text-align:left;"
                   onclick={() => mediaViewer = f.name}
                 >
-                  <img src={mediaSrc(f.name)} alt={f.name}
+                  <img src={mediaUrl(f.name)} alt={f.name}
                     style="width:100%;height:80px;object-fit:cover;display:block;" />
                   <span style="font-size:0.625rem;color:#64748b;padding:0.125rem 0.25rem;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{f.name}</span>
                 </button>
@@ -3476,7 +3485,7 @@
                 title={t("characters.undock")}><XCircle size={16} weight="light" color="currentColor" /></button>
             </div>
             <div class="character-dock-body">
-              <img src={mediaSrc(mediaDocked)} alt={mediaDocked}
+              <img src={mediaUrl(mediaDocked)} alt={mediaDocked}
                 style="max-width:100%;max-height:300px;object-fit:contain;display:block;" />
             </div>
           </div>
@@ -3562,7 +3571,7 @@
     onkeydown={(e) => e.key === "Escape" && (mediaViewer = null)}
   >
     <div class="modal-panel" style="max-width:90vw;max-height:90vh;padding:0.5rem;" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-      <img src={mediaSrc(mediaViewer)} alt={mediaViewer}
+      <img src={mediaUrl(mediaViewer)} alt={mediaViewer}
         style="max-width:100%;max-height:85vh;object-fit:contain;display:block;" />
       <div style="display:flex;justify-content:space-between;align-items:center;padding:0.25rem 0.5rem;">
         <span style="font-size:0.75rem;color:#64748b;">{mediaViewer}</span>

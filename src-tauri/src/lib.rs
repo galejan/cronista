@@ -92,15 +92,6 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let state = window.state::<ProjectState>();
 
-                // Guard against re-entry: window.close() triggers another
-                // CloseRequested, but the closing flag breaks the cycle.
-                {
-                    let closing = state.closing.lock().unwrap();
-                    if *closing {
-                        return;
-                    }
-                }
-
                 let project_path = {
                     let active = state.active_project.lock().unwrap();
                     active.clone()
@@ -108,14 +99,15 @@ pub fn run() {
                 eprintln!("[rust:close] project_path = {:?}", project_path);
 
                 if let Some(ref path) = project_path {
-                    // Guard against re-entry for project case
+                    // Guard against re-entry
                     {
                         let mut closing = state.closing.lock().unwrap();
+                        if *closing { return; }
                         *closing = true;
                     }
 
                     api.prevent_close();
-                    // ... rest of project close logic ...
+
                     let path = path.clone();
                     let window_clone = window.clone();
                     let app_handle = window.app_handle().clone();
@@ -129,13 +121,14 @@ pub fn run() {
                         let _ = window_clone.destroy();
                     });
                 } else {
-                    // No project — set closing flag to break re-entry, then close
-                    {
-                        let mut closing = state.closing.lock().unwrap();
-                        *closing = true;
-                    }
-                    eprintln!("[rust:close] No project → closing window directly");
-                    let _ = window.close();
+                    // No project — same mechanism: prevent, then destroy
+                    api.prevent_close();
+                    eprintln!("[rust:close] No project → destroying window");
+                    let window_clone = window.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        let _ = window_clone.destroy();
+                    });
                 }
             }
         })

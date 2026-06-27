@@ -3023,6 +3023,29 @@ fn finalizar_sesion_escritura(tracker: &mut SessionTracker, project_path: &Path)
     *tracker = SessionTracker::default();
 }
 
+/// Read session statistics from the project's stats.json.
+///
+/// Returns a JSON object with `total_sessions`, `total_hours`, and `total_words`
+/// for quick display in the UI footer. If the file doesn't exist or is corrupt,
+/// returns zeros.
+#[tauri::command]
+fn cargar_estadisticas(project_path: String) -> Result<String, String> {
+    let stats_path = Path::new(&project_path).join(".config").join("stats.json");
+    if !stats_path.exists() {
+        return Ok(r#"{"total_sessions":0,"total_hours":0,"total_words":0}"#.to_string());
+    }
+    let raw = std::fs::read_to_string(&stats_path)
+        .map_err(|e| format!("Error reading stats.json: {}", e))?;
+    let stats: SessionStats = serde_json::from_str(&raw).unwrap_or_default();
+    let total_hours = stats.total_time_seconds as f64 / 3600.0;
+    let result = serde_json::json!({
+        "total_sessions": stats.sessions.len(),
+        "total_hours": (total_hours * 10.0).round() / 10.0,
+        "total_words": stats.total_words,
+    });
+    Ok(result.to_string())
+}
+
 /// Internal checkpoint for close handler.
 ///
 /// Commits local changes (best-effort), then collects session stats,
@@ -3974,6 +3997,7 @@ pub fn run() {
             cargar_identidad_git,
             guardar_identidad_git,
             cargar_config_remoto,
+            cargar_estadisticas,
             guardar_config_remoto,
             configurar_remoto,
             sincronizar_remoto,

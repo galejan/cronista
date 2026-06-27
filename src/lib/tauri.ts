@@ -344,6 +344,11 @@ export async function cargarConfigRemoto(projectPath: string): Promise<{push_ena
   return JSON.parse(result);
 }
 
+/** Load session statistics for the footer panel. Returns defaults on error. */
+export async function cargarEstadisticas(projectPath: string): Promise<string> {
+  return await invoke<string>("cargar_estadisticas", { projectPath });
+}
+
 export async function guardarConfigRemoto(projectPath: string, url: string, pushEnabled: boolean): Promise<string> {
   return invoke("guardar_config_remoto", { proyectoPath: projectPath, url, pushEnabled });
 }

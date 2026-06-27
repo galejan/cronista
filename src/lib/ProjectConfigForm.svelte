@@ -345,13 +345,13 @@
     font-size: 0.75rem;
     font-weight: 600;
     background: #e2e8f0;
-    color: #64748b;
+    color: var(--text-muted);
     transition: all 200ms;
   }
 
   :global(.dark) .step-dot {
     background: #334155;
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 
   .progress-step.active .step-dot {
@@ -368,7 +368,7 @@
     font-size: 0.625rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #94a3b8;
+    color: var(--text-muted);
     text-align: center;
     max-width: 5rem;
   }
@@ -397,10 +397,10 @@
 
   /* ── Step body ──────────────────────────────────── */
   .step-body {
-    background: #f8fafc;
+    background: var(--bg-app);
     border-radius: 0.5rem;
     padding: 1.25rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   :global(.dark) .step-body {
@@ -412,17 +412,17 @@
     margin: 0 0 0.5rem;
     font-size: 1rem;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .step-title {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .step-desc {
     margin: 0 0 1rem;
     font-size: 0.8125rem;
-    color: #64748b;
+    color: var(--text-muted);
     line-height: 1.5;
   }
 
@@ -441,7 +441,7 @@
     flex-direction: column;
     gap: 0.125rem;
     padding: 0.625rem 0.75rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     cursor: pointer;
     transition: border-color 150ms, background 150ms;
@@ -468,16 +468,16 @@
   .font-radio-text {
     font-size: 0.9375rem;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .font-radio-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .font-radio-hint {
     font-size: 0.75rem;
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 
   .font-mono {
@@ -493,10 +493,10 @@
   }
 
   .font-preview-block {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     padding: 0.75rem;
-    background: #ffffff;
+    background: var(--bg-app);
   }
 
   :global(.dark) .font-preview-block {
@@ -509,7 +509,7 @@
     font-size: 0.625rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #94a3b8;
+    color: var(--text-muted);
     margin-bottom: 0.5rem;
   }
 
@@ -517,11 +517,11 @@
     margin: 0;
     font-size: 0.9375rem;
     line-height: 1.7;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .preview-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   /* ── Tabs checklist ─────────────────────────────── */
@@ -536,7 +536,7 @@
     align-items: center;
     gap: 0.625rem;
     padding: 0.5rem 0.75rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     cursor: pointer;
     transition: border-color 150ms, background 150ms;
@@ -549,7 +549,7 @@
   .tab-checkbox-label.disabled {
     opacity: 0.7;
     cursor: not-allowed;
-    background: #f1f5f9;
+    background: var(--bg-active-tab);
   }
 
   :global(.dark) .tab-checkbox-label.disabled {
@@ -569,11 +569,11 @@
 
   .tab-checkbox-text {
     font-size: 0.875rem;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .tab-checkbox-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   /* ── Interval radio group ───────────────────────── */
@@ -591,7 +591,7 @@
     align-items: center;
     gap: 0.625rem;
     padding: 0.625rem 0.75rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     cursor: pointer;
     transition: border-color 150ms, background 150ms;
@@ -617,11 +617,11 @@
 
   .interval-radio-text {
     font-size: 0.9375rem;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .interval-radio-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   /* ── Review summary ─────────────────────────────── */
@@ -636,7 +636,7 @@
     justify-content: space-between;
     align-items: flex-start;
     padding: 0.5rem 0;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--border-color);
   }
 
   :global(.dark) .review-row {
@@ -652,18 +652,18 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #64748b;
+    color: var(--text-muted);
     min-width: 6rem;
   }
 
   .review-value {
     font-size: 0.875rem;
-    color: #1e293b;
+    color: var(--text-main);
     text-align: right;
   }
 
   :global(.dark) .review-value {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .review-tabs-list {
@@ -674,24 +674,24 @@
 
   .review-tab-item {
     font-size: 0.8125rem;
-    color: #1e293b;
+    color: var(--text-main);
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
   }
 
   :global(.dark) .review-tab-item {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .review-tab-item.hidden {
-    color: #94a3b8;
+    color: var(--text-muted);
     text-decoration: line-through;
   }
 
   .review-tab-status {
     font-size: 0.6875rem;
-    color: #94a3b8;
+    color: var(--text-muted);
     text-transform: uppercase;
   }
 
@@ -747,10 +747,10 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.5rem 1.25rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
     background: transparent;
-    color: #475569;
+    color: var(--text-muted);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
@@ -758,7 +758,7 @@
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background: #f8fafc;
+    background: var(--bg-app);
     border-color: #cbd5e1;
   }
 
@@ -774,7 +774,7 @@
 
   :global(.dark) .btn-secondary:hover:not(:disabled) {
     background: #334155;
-    border-color: #475569;
+    border-color: var(--text-muted);
   }
 
   .sr-only {

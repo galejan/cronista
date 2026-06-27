@@ -213,8 +213,8 @@
   .ctx-menu {
     position: fixed;
     min-width: 220px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--bg-app);
+    border: 1px solid var(--border-color);
     border-radius: 0.625rem;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
     padding: 0.375rem;
@@ -239,14 +239,14 @@
     border-radius: 0.375rem;
     background: transparent;
     font-size: 0.8125rem;
-    color: #1e293b;
+    color: var(--text-main);
     cursor: pointer;
     transition: background 100ms;
     line-height: 1.4;
   }
 
   .ctx-item:hover {
-    background: #f1f5f9;
+    background: var(--bg-active-tab);
   }
 
   .ctx-item:disabled {

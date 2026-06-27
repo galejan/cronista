@@ -306,7 +306,7 @@
   }
 
   .modal-panel {
-    background: #ffffff;
+    background: var(--bg-app);
     border-radius: 0.75rem;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
     max-width: 460px;
@@ -323,22 +323,22 @@
     margin: 0 0 0.75rem;
     font-size: 1.1rem;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .modal-panel h2 {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .modal-desc {
     margin: 0 0 1rem;
     font-size: 0.8125rem;
-    color: #64748b;
+    color: var(--text-muted);
     line-height: 1.5;
   }
 
   :global(.dark) .modal-desc {
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 
   .modal-field {
@@ -346,7 +346,7 @@
     margin-bottom: 0.75rem;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #475569;
+    color: var(--text-muted);
   }
 
   :global(.dark) .modal-field {
@@ -359,10 +359,10 @@
     margin-top: 0.25rem;
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
-    background: #ffffff;
-    color: #1e293b;
+    background: var(--bg-app);
+    color: var(--text-main);
     box-sizing: border-box;
   }
 
@@ -374,7 +374,7 @@
   :global(.dark) .modal-input {
     background: #0f172a;
     border-color: #334155;
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .modal-input:focus {
@@ -414,10 +414,10 @@
 
   .btn-secondary {
     padding: 0.5rem 1.25rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
-    background: #ffffff;
-    color: #475569;
+    background: var(--bg-app);
+    color: var(--text-muted);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
@@ -425,7 +425,7 @@
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background: #f8fafc;
+    background: var(--bg-app);
     border-color: #cbd5e1;
   }
 
@@ -442,7 +442,7 @@
 
   :global(.dark) .btn-secondary:hover:not(:disabled) {
     background: #334155;
-    border-color: #475569;
+    border-color: var(--text-muted);
   }
 
   /* ── Info box ──────────────────────────────────────────────────── */
@@ -471,7 +471,7 @@
     gap: 0.5rem;
     margin-bottom: 0.75rem;
     font-size: 0.8125rem;
-    color: #475569;
+    color: var(--text-muted);
     cursor: pointer;
   }
 

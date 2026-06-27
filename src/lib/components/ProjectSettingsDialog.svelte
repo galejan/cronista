@@ -591,7 +591,7 @@
   }
 
   .modal-panel {
-    background: #ffffff;
+    background: var(--bg-app);
     border-radius: 0.75rem;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
     max-width: 500px;
@@ -617,14 +617,14 @@
     margin: 0;
     font-size: 1.1rem;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--text-main);
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
 
   :global(.dark) .modal-header h2 {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .close-btn {
@@ -635,7 +635,7 @@
     height: 2rem;
     border: none;
     background: transparent;
-    color: #64748b;
+    color: var(--text-muted);
     cursor: pointer;
     border-radius: 0.375rem;
     transition: background 150ms;
@@ -643,7 +643,7 @@
   }
 
   .close-btn:hover {
-    background: #f1f5f9;
+    background: var(--bg-active-tab);
   }
 
   :global(.dark) .close-btn:hover {
@@ -653,7 +653,7 @@
   /* ── Tabs ────────────────────────────────────── */
   .settings-tabs {
     display: flex;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--border-color);
     padding: 0 1.5rem;
     gap: 0;
   }
@@ -666,7 +666,7 @@
     padding: 0.625rem 1rem;
     border: none;
     background: transparent;
-    color: #64748b;
+    color: var(--text-muted);
     font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
@@ -676,7 +676,7 @@
   }
 
   .settings-tab:hover {
-    color: #475569;
+    color: var(--text-muted);
   }
 
   :global(.dark) .settings-tab:hover {
@@ -722,11 +722,11 @@
 
   .font-radio-text {
     font-size: 0.875rem;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .font-radio-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .font-mono {
@@ -742,11 +742,11 @@
   }
 
   .font-preview-block {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     padding: 0.75rem;
     margin-bottom: 1rem;
-    background: #f8fafc;
+    background: var(--bg-app);
   }
 
   :global(.dark) .font-preview-block {
@@ -759,7 +759,7 @@
     font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #94a3b8;
+    color: var(--text-muted);
     margin-bottom: 0.5rem;
   }
 
@@ -767,11 +767,11 @@
     margin: 0;
     font-size: 1rem;
     line-height: 1.7;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .preview-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   /* ── Screen-reader only ──────────────────────── */
@@ -789,7 +789,7 @@
   /* ── Identity / Remote panels ────────────────── */
   .loading-text {
     text-align: center;
-    color: #64748b;
+    color: var(--text-muted);
     padding: 1rem 0;
     font-size: 0.875rem;
   }
@@ -800,7 +800,7 @@
     margin-bottom: 0.75rem;
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #475569;
+    color: var(--text-muted);
   }
 
   :global(.dark) .modal-field {
@@ -813,10 +813,10 @@
     margin-top: 0.25rem;
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
-    background: #ffffff;
-    color: #1e293b;
+    background: var(--bg-app);
+    color: var(--text-main);
     box-sizing: border-box;
   }
 
@@ -828,7 +828,7 @@
   :global(.dark) .modal-input {
     background: #0f172a;
     border-color: #334155;
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .modal-input:focus {
@@ -869,10 +869,10 @@
 
   .btn-secondary {
     padding: 0.5rem 1.25rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
-    background: #ffffff;
-    color: #475569;
+    background: var(--bg-app);
+    color: var(--text-muted);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
@@ -880,7 +880,7 @@
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background: #f8fafc;
+    background: var(--bg-app);
     border-color: #cbd5e1;
   }
 
@@ -897,7 +897,7 @@
 
   :global(.dark) .btn-secondary:hover:not(:disabled) {
     background: #334155;
-    border-color: #475569;
+    border-color: var(--text-muted);
   }
 
   /* ── Messages ────────────────────────────────── */
@@ -942,13 +942,13 @@
   /* ── Tabs & Autosave panel styles ────────────── */
   .step-desc {
     font-size: 0.8125rem;
-    color: #64748b;
+    color: var(--text-muted);
     margin: 0 0 1rem;
     line-height: 1.5;
   }
 
   :global(.dark) .step-desc {
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 
   .tabs-checklist {
@@ -963,7 +963,7 @@
     align-items: center;
     gap: 0.625rem;
     padding: 0.5rem 0.75rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
     cursor: pointer;
   }
@@ -975,7 +975,7 @@
   .tab-checkbox-label.disabled {
     opacity: 0.7;
     cursor: not-allowed;
-    background: #f1f5f9;
+    background: var(--bg-active-tab);
   }
 
   :global(.dark) .tab-checkbox-label.disabled {
@@ -988,11 +988,11 @@
 
   .tab-checkbox-text {
     font-size: 0.875rem;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .tab-checkbox-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 
   .interval-radio-group {
@@ -1009,7 +1009,7 @@
     align-items: center;
     gap: 0.625rem;
     padding: 0.625rem 0.75rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     border-radius: 0.375rem;
     cursor: pointer;
     transition: border-color 150ms;
@@ -1033,10 +1033,10 @@
 
   .interval-radio-text {
     font-size: 0.9375rem;
-    color: #1e293b;
+    color: var(--text-main);
   }
 
   :global(.dark) .interval-radio-text {
-    color: #f1f5f9;
+    color: var(--text-title);
   }
 </style>

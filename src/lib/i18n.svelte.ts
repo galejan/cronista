@@ -367,6 +367,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "settings.saved": "Guardado",
     "settings.settings": "Configuración",
 
+    // ── Global Settings ────────────────────────────────────
+    "globalSettings.title": "Preferencias de la aplicación",
+    "globalSettings.language": "Idioma",
+    "globalSettings.theme": "Tema",
+    "globalSettings.close": "Cerrar",
+
     // ── Project Config Form ────────────────────────────────
     "config.titleNew": "Configurar nuevo proyecto",
     "config.titleEdit": "Configurar proyecto",
@@ -764,6 +770,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "settings.saving": "Saving…",
     "settings.saved": "Saved",
     "settings.settings": "Settings",
+
+    // ── Global Settings ────────────────────────────────────
+    "globalSettings.title": "Application Preferences",
+    "globalSettings.language": "Language",
+    "globalSettings.theme": "Theme",
+    "globalSettings.close": "Close",
 
     // ── Project Config Form ────────────────────────────────
     "config.titleNew": "Configure new project",

@@ -133,8 +133,9 @@ pub fn run() {
                         let _ = window_clone.destroy();
                     });
                 }
-                // If no active project, don't prevent close — window closes normally
-                eprintln!("[rust:close] No project → letting window close normally");
+                // If no active project, close the window immediately
+                eprintln!("[rust:close] No project → closing window directly");
+                let _ = window.close();
             }
         })
         .run(tauri::generate_context!())

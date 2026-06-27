@@ -319,8 +319,11 @@
       const chs = chaptersByTrama.get(t.id) ?? [];
       sections.push({ tramaId: t.id, nombre: t.nombre, chapters: chs });
     }
-    const unassigned = chaptersByTrama.get(null) ?? [];
-    sections.push({ tramaId: null, nombre: null, chapters: unassigned });
+    // Only show "unassigned" group if there are tramas defined
+    if (tramas.length > 0) {
+      const unassigned = chaptersByTrama.get(null) ?? [];
+      sections.push({ tramaId: null, nombre: null, chapters: unassigned });
+    }
     return sections;
   });
   let pendingDelete = $state<string | null>(null);
@@ -2354,6 +2357,41 @@
         <div class="tab-panel">
           {#if chapters.length > 0}
             <p class="chapter-list-label">{t("chapters.label")}</p>
+            {#if tramas.length === 0}
+              <!-- Flat list — no tramas defined -->
+              <ul class="chapter-list" role="listbox" onkeydown={handleListKeydown}>
+                {#each chapters as ch}
+                  <li class="chapter-row"
+                    draggable="true"
+                    ondragstart={(e) => {
+                      dragChapter = ch;
+                      e.dataTransfer!.effectAllowed = 'move';
+                      e.dataTransfer!.setData('text/plain', ch);
+                      (e.currentTarget as HTMLElement).classList.add("dragging");
+                    }}
+                    ondragend={(e) => {
+                      (e.currentTarget as HTMLElement).classList.remove("dragging");
+                      dragChapter = null;
+                    }}
+                  >
+                    <button
+                      class="chapter-link"
+                      class:active-chapter={activeChapter === ch}
+                      onclick={() => { pendingDelete = null; tramaPendingDelete = null; activeNote = ""; cargarCapituloActual(ch); }}
+                    >
+                      {ch}
+                    </button>
+                    {#if pendingDelete === ch}
+                      <button class="delete-confirm" title={t("chapters.confirmDeleteTitle")}
+                        onclick={() => eliminarCapituloHandler(ch)}>{t("chapters.confirmDelete")}</button>
+                    {:else}
+                      <button class="item-delete" title={t("chapters.deleteTitle")}
+                        onclick={() => pendingDelete = ch}><X size={14} weight="light" color="currentColor" /></button>
+                    {/if}
+                  </li>
+                {/each}
+            </ul>
+          {:else}
             <ul class="chapter-list" role="listbox" onkeydown={handleListKeydown}>
               {#each tramaSections as section}
                 {@const isUnassigned = section.tramaId === null}
@@ -2456,6 +2494,7 @@
                 {/if}
               {/each}
             </ul>
+            {/if}
           {:else}
             <p class="empty-hint">{t("chapters.empty")}</p>
           {/if}

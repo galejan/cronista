@@ -489,58 +489,40 @@
   let closing = $state(false);
   let closeStep = $state("");
 
-  $effect(() => {
-    let unlisten: (() => void) | undefined;
+  // Register close handler at module level — runs once, guaranteed
+  try {
+    const w = getCurrentWindow();
+    console.log("[close] Registering onCloseRequested at module level. Window:", w.label);
 
-    try {
-      const w = getCurrentWindow();
-      console.log("[close] Registering onCloseRequested handler. Window:", w.label);
+    w.onCloseRequested((event) => {
+      const path = projectPath; // read directly, no untrack needed
+      console.log("[close] ── Fired! path=%s typeof=%s", path, typeof path);
 
-      w.onCloseRequested((event) => {
-        const path = untrack(() => projectPath);
-        console.log("[close] ── Fired! path=%s, typeof=%s, truthy=%s", path, typeof path, !!path);
-
-        // No project open — just close
-        if (!path) {
-          console.log("[close] No project → calling destroy()");
-          try {
-            getCurrentWindow().destroy();
-            console.log("[close] destroy() called successfully");
-          } catch (e) {
-            console.error("[close] destroy() FAILED:", e);
-          }
-          return;
+      if (!path) {
+        console.log("[close] No project → calling destroy()");
+        try {
+          getCurrentWindow().destroy();
+          console.log("[close] destroy() called successfully");
+        } catch (e) {
+          console.error("[close] destroy() FAILED:", e);
         }
+        return;
+      }
 
-        // Project is open — handle asynchronously
-        const gitOk = untrack(() => gitEnabled);
-        if (!gitOk || untrack(() => closing)) {
-          return;
-        }
+      if (!gitEnabled || closing) return;
 
-        closing = true;
-        closeStep = "Cerrando aplicación...";
-        event.preventDefault();
+      closing = true;
+      closeStep = "Cerrando aplicación...";
+      event.preventDefault();
 
-        // Spawn async cleanup without blocking the event
-        (async () => {
-          await new Promise(r => setTimeout(r, 500));
-          try {
-            getCurrentWindow().destroy();
-          } catch (e) {
-            console.error("[cron-insta:close] destroy FAILED:", e);
-          }
-        })();
-      });
-    } catch (err) {
-      console.error("[cron-insta:close] Not in Tauri:", err);
-    }
-
-    return () => {
-      console.log("[cron-insta:close] Effect cleanup — unregistering handler");
-      unlisten?.();
-    };
-  });
+      (async () => {
+        await new Promise(r => setTimeout(r, 500));
+        try { getCurrentWindow().destroy(); } catch (e) {}
+      })();
+    });
+  } catch (err) {
+    console.error("[close] Module-level registration failed:", err);
+  }
 
   /** Editor component reference — exposes setContent(html) + heading control. */
   let editorRef = $state<{

@@ -84,6 +84,61 @@ struct GitDetectedConfig {
     remote_url: Option<String>,
 }
 
+/// Per-tab visibility toggles for the sidebar.
+///
+/// All fields default to `true` via serde and `Default` for backward
+/// compatibility with old `metadata.json` files.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct VisibleTabs {
+    #[serde(default = "default_true")]
+    chapters: bool,
+    #[serde(default = "default_true")]
+    characters: bool,
+    #[serde(default = "default_true")]
+    places: bool,
+    #[serde(default = "default_true")]
+    timeline: bool,
+    #[serde(default = "default_true")]
+    notes: bool,
+}
+
+impl Default for VisibleTabs {
+    fn default() -> Self {
+        Self {
+            chapters: true,
+            characters: true,
+            places: true,
+            timeline: true,
+            notes: true,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn validate_visible_tabs(tabs: &VisibleTabs) -> Result<(), String> {
+    if !tabs.chapters {
+        return Err("Los capítulos deben estar siempre visibles (chapters debe ser true).".to_string());
+    }
+    Ok(())
+}
+
+fn validate_auto_save_interval(minutes: u32) -> Result<(), String> {
+    match minutes {
+        1 | 5 | 10 => Ok(()),
+        _ => Err(format!(
+            "Intervalo de autoguardado inválido: {}. Debe ser 1, 5 o 10 minutos.",
+            minutes
+        )),
+    }
+}
+
+fn default_auto_save_interval() -> u32 {
+    5
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Metadata {
     project_name: String,
@@ -100,6 +155,12 @@ struct Metadata {
     /// Consecutive push failure count for the 3-strike rule.
     #[serde(default)]
     consecutive_failures: u32,
+    /// Per-tab visibility toggles. All default to `true`.
+    #[serde(default)]
+    visible_tabs: VisibleTabs,
+    /// Auto-save interval in minutes (1, 5, or 10). Default 5.
+    #[serde(default = "default_auto_save_interval")]
+    auto_save_interval_minutes: u32,
 }
 
 fn default_font_family() -> String {
@@ -426,7 +487,8 @@ JSON array of TimelineEvent objects (see Entity section above).
 /// The Git identity is read from the global config file; falls back to
 /// the default "Cron-Insta" identity when no config exists.
 #[tauri::command]
-fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_family: Option<String>) -> Result<String, String> {
+#[allow(clippy::too_many_arguments)]
+fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_family: Option<String>, visible_tabs: Option<VisibleTabs>, auto_save_interval_minutes: Option<u32>) -> Result<String, String> {
     // Normalise trailing separators
     let path = path.trim_end_matches('/').trim_end_matches('\\').to_string();
     let base = Path::new(&path);
@@ -446,6 +508,15 @@ fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_fami
     std::fs::write(base.join("lugares/index.json"), "[]")
         .map_err(|e| format!("Error al escribir lugares/index.json: {}", e))?;
 
+    // Validate interval if provided
+    if let Some(interval) = auto_save_interval_minutes {
+        validate_auto_save_interval(interval)?;
+    }
+    // Validate tabs if provided
+    if let Some(ref tabs) = visible_tabs {
+        validate_visible_tabs(tabs)?;
+    }
+
     // Write metadata.json
     let metadata = Metadata {
         project_name: nombre.clone(),
@@ -456,6 +527,8 @@ fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_fami
         font_family: font_family.unwrap_or_else(default_font_family),
         push_enabled: false,
         consecutive_failures: 0,
+        visible_tabs: visible_tabs.unwrap_or_default(),
+        auto_save_interval_minutes: auto_save_interval_minutes.unwrap_or_else(default_auto_save_interval),
     };
     let metadata_json = serde_json::to_string_pretty(&metadata)
         .map_err(|e| format!("Error al serializar metadata: {}", e))?;
@@ -1217,6 +1290,80 @@ fn actualizar_fuente_proyecto(project_path: String, font_family: String) -> Resu
         .map_err(|e| format!("Error al escribir metadata.json: {}", e))?;
 
     Ok("".to_string())
+}
+
+/// Merge partial project configuration into metadata.json.
+///
+/// Reads the current metadata, merges the given partial JSON config
+/// (a `serde_json::Value`), validates the result (chapters must be true,
+/// interval must be 1|5|10), and writes the merged output back to disk.
+///
+/// Returns the full merged metadata as a JSON string so the frontend can
+/// update its state without re-fetching.
+#[tauri::command]
+fn actualizar_config_proyecto(project_path: String, config: serde_json::Value) -> Result<String, String> {
+    if project_path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+
+    let metadata_path = Path::new(&project_path)
+        .join(".config")
+        .join("metadata.json");
+
+    if !metadata_path.exists() {
+        return Err(format!(
+            "Archivo de metadatos no encontrado: {}",
+            metadata_path.display()
+        ));
+    }
+
+    // 1) Read current metadata
+    let metadata_str = std::fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Error al leer metadata.json: {}", e))?;
+
+    let mut metadata: Metadata = serde_json::from_str(&metadata_str)
+        .map_err(|e| format!("Error al parsear metadata.json: {}", e))?;
+
+    // 2) Merge partial config (only overwrite fields present in the payload)
+    if let Some(obj) = config.as_object() {
+        if let Some(visible_tabs_val) = obj.get("visible_tabs") {
+            if let Ok(tabs) = serde_json::from_value::<VisibleTabs>(visible_tabs_val.clone()) {
+                metadata.visible_tabs = tabs;
+            }
+        }
+        if let Some(interval_val) = obj.get("auto_save_interval_minutes") {
+            if let Some(interval) = interval_val.as_u64() {
+                metadata.auto_save_interval_minutes = interval as u32;
+            }
+        }
+        if let Some(font_val) = obj.get("font_family") {
+            if let Some(font) = font_val.as_str() {
+                let valid_fonts = ["monospace", "serif", "sans-serif"];
+                if valid_fonts.contains(&font) {
+                    metadata.font_family = font.to_string();
+                }
+            }
+        }
+    }
+
+    // 3) Validate merged result
+    validate_visible_tabs(&metadata.visible_tabs)?;
+    validate_auto_save_interval(metadata.auto_save_interval_minutes)?;
+
+    // 4) Update timestamp and write
+    metadata.last_modified = Local::now().to_rfc3339();
+
+    let updated_json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| format!("Error al serializar metadata.json: {}", e))?;
+
+    std::fs::write(&metadata_path, updated_json)
+        .map_err(|e| format!("Error al escribir metadata.json: {}", e))?;
+
+    // Return full merged metadata so frontend can update state
+    let full_json = serde_json::to_string(&metadata)
+        .map_err(|e| format!("Error al serializar metadata: {}", e))?;
+
+    Ok(full_json)
 }
 
 /// Update a character.
@@ -3210,6 +3357,7 @@ pub fn run() {
             cargar_personaje,
             actualizar_personaje,
             actualizar_fuente_proyecto,
+            actualizar_config_proyecto,
             eliminar_personaje,
             listar_notas,
             crear_nota,
@@ -3358,6 +3506,8 @@ mod tests {
             font_family: font_family.unwrap_or_else(default_font_family),
             push_enabled: false,
             consecutive_failures: 0,
+            visible_tabs: VisibleTabs::default(),
+            auto_save_interval_minutes: default_auto_save_interval(),
         };
         let metadata_json = serde_json::to_string_pretty(&metadata)
             .map_err(|e| format!("Error al serializar metadata: {}", e))?;
@@ -5661,6 +5811,269 @@ mod tests {
         assert_eq!(result.name.as_deref(), Some("Ada Lovelace"));
         assert_eq!(result.email, None);
         assert_eq!(result.remote_url, None);
+    }
+
+    // ========================================================================
+    // project-config tests (VisibleTabs, auto_save_interval, config merge)
+    // ========================================================================
+
+    // ── VisibleTabs serde defaults ───────────────────────────
+
+    #[test]
+    fn test_visible_tabs_serde_defaults_all_true() {
+        // Deserialize JSON with missing keys → all fields should be true
+        let json = r#"{"chapters": true}"#;
+        let tabs: VisibleTabs = serde_json::from_str(json).expect("deserialize");
+        assert!(tabs.chapters);
+        assert!(tabs.characters, "characters should default to true");
+        assert!(tabs.places, "places should default to true");
+        assert!(tabs.timeline, "timeline should default to true");
+        assert!(tabs.notes, "notes should default to true");
+    }
+
+    #[test]
+    fn test_visible_tabs_default_all_true() {
+        let tabs = VisibleTabs::default();
+        assert!(tabs.chapters);
+        assert!(tabs.characters);
+        assert!(tabs.places);
+        assert!(tabs.timeline);
+        assert!(tabs.notes);
+    }
+
+    // ── Chapters rejection ───────────────────────────────────
+
+    #[test]
+    fn test_validate_visible_tabs_rejects_chapters_false() {
+        let mut tabs = VisibleTabs::default();
+        tabs.chapters = false;
+        let result = validate_visible_tabs(&tabs);
+        assert!(result.is_err(), "Expected Err when chapters is false");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("capítulos") || err.contains("chapters"),
+            "Error should mention chapters, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_visible_tabs_allows_others_false() {
+        let mut tabs = VisibleTabs::default();
+        tabs.characters = false;
+        tabs.places = false;
+        let result = validate_visible_tabs(&tabs);
+        assert!(result.is_ok(), "Expected Ok when only chapters is true");
+    }
+
+    // ── Invalid interval rejection ───────────────────────────
+
+    #[test]
+    fn test_validate_auto_save_interval_allows_valid_values() {
+        for &val in &[1, 5, 10] {
+            let result = validate_auto_save_interval(val);
+            assert!(result.is_ok(), "{} should be valid", val);
+        }
+    }
+
+    #[test]
+    fn test_validate_auto_save_interval_rejects_invalid() {
+        for &val in &[0, 2, 3, 4, 7, 11, 99] {
+            let result = validate_auto_save_interval(val);
+            assert!(result.is_err(), "{} should be invalid", val);
+        }
+    }
+
+    // ── Seeding new fields on project creation ───────────────
+
+    #[test]
+    fn test_crear_proyecto_seeds_visible_tabs() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let raw = fs::read_to_string(dir.path().join(".config").join("metadata.json")).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert!(meta.visible_tabs.chapters);
+        assert!(meta.visible_tabs.characters);
+        assert!(meta.visible_tabs.places);
+        assert!(meta.visible_tabs.timeline);
+        assert!(meta.visible_tabs.notes);
+    }
+
+    #[test]
+    fn test_crear_proyecto_seeds_auto_save_interval() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let raw = fs::read_to_string(dir.path().join(".config").join("metadata.json")).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.auto_save_interval_minutes, 5,
+            "auto_save_interval_minutes should default to 5");
+    }
+
+    // ── Backward compat: old metadata without new fields ─────
+
+    #[test]
+    fn test_metadata_serde_backward_compat_without_new_fields() {
+        // Old metadata.json without visible_tabs or auto_save_interval_minutes
+        let old_json = r#"{
+            "project_name": "Old Project",
+            "last_modified": "2024-01-01T00:00:00Z",
+            "chapters_order": [],
+            "characters_index": [],
+            "places_index": [],
+            "font_family": "monospace"
+        }"#;
+        let meta: Metadata = serde_json::from_str(old_json).expect("deserialize old metadata");
+        assert_eq!(meta.project_name, "Old Project");
+        assert!(meta.visible_tabs.chapters, "chapters should default to true");
+        assert!(meta.visible_tabs.characters, "characters should default to true");
+        assert!(meta.visible_tabs.places, "places should default to true");
+        assert!(meta.visible_tabs.timeline, "timeline should default to true");
+        assert!(meta.visible_tabs.notes, "notes should default to true");
+        assert_eq!(meta.auto_save_interval_minutes, 5,
+            "auto_save_interval should default to 5");
+    }
+
+    // ── actualizar_config_proyecto merge tests ───────────────
+
+    #[test]
+    fn test_actualizar_config_merge_partial_preserves_untouched() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), Some("serif".to_string()));
+
+        // Merge only visible_tabs — font_family should be untouched
+        let config = serde_json::json!({
+            "visible_tabs": { "characters": false, "places": false }
+        });
+        let result = actualizar_config_proyecto(path.clone(), config);
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let raw = fs::read_to_string(dir.path().join(".config").join("metadata.json")).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.font_family, "serif", "font_family should be preserved");
+        assert!(!meta.visible_tabs.characters, "characters should be false");
+        assert!(!meta.visible_tabs.places, "places should be false");
+        assert!(meta.visible_tabs.chapters, "chapters should still be true");
+        assert!(meta.visible_tabs.timeline, "timeline should still be true");
+    }
+
+    #[test]
+    fn test_actualizar_config_merge_interval() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let config = serde_json::json!({ "auto_save_interval_minutes": 1 });
+        let result = actualizar_config_proyecto(path.clone(), config);
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let raw = fs::read_to_string(dir.path().join(".config").join("metadata.json")).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.auto_save_interval_minutes, 1);
+    }
+
+    #[test]
+    fn test_actualizar_config_rejects_chapters_false() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        // Snapshot current metadata content
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let before = fs::read_to_string(&meta_path).unwrap();
+
+        let config = serde_json::json!({ "visible_tabs": { "chapters": false } });
+        let result = actualizar_config_proyecto(path.clone(), config);
+        assert!(result.is_err(), "Expected Err when chapters is false");
+
+        // Disk must be unchanged (atomic rejection)
+        let after = fs::read_to_string(&meta_path).unwrap();
+        assert_eq!(before, after, "metadata.json should be unchanged after rejection");
+    }
+
+    #[test]
+    fn test_actualizar_config_rejects_invalid_interval() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let before = fs::read_to_string(&meta_path).unwrap();
+
+        let config = serde_json::json!({ "auto_save_interval_minutes": 3 });
+        let result = actualizar_config_proyecto(path.clone(), config);
+        assert!(result.is_err(), "Expected Err for interval 3");
+
+        // Disk must be unchanged (atomic rejection)
+        let after = fs::read_to_string(&meta_path).unwrap();
+        assert_eq!(before, after, "metadata.json should be unchanged after rejection");
+    }
+
+    #[test]
+    fn test_actualizar_config_rejects_invalid_font() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let _before = fs::read_to_string(&meta_path).unwrap();
+
+        // Invalid font should NOT be merged — the command skips it silently
+        let config = serde_json::json!({ "font_family": "comic_sans" });
+        let result = actualizar_config_proyecto(path.clone(), config);
+        assert!(result.is_ok(), "Expected Ok (invalid font is silently skipped)");
+
+        let raw = fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.font_family, "monospace", "font_family should be unchanged");
+    }
+
+    #[test]
+    fn test_actualizar_config_returns_full_json() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let config = serde_json::json!({ "auto_save_interval_minutes": 10 });
+        let result = actualizar_config_proyecto(path.clone(), config);
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let json_str = result.unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("valid JSON");
+        assert_eq!(parsed["auto_save_interval_minutes"], 10);
+        assert_eq!(parsed["project_name"], "Test");
+    }
+
+    // ── Metadata round-trip preserves new fields ──────────────
+
+    #[test]
+    fn test_metadata_roundtrip_preserves_new_fields() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        create_project_for_test(path.clone(), "Test".to_string(), None).unwrap();
+
+        // Modify font via actualizar_fuente_proyecto (existing command)
+        actualizar_fuente_proyecto(path.clone(), "serif".to_string()).unwrap();
+
+        // New fields must survive an unrelated metadata write
+        let raw = fs::read_to_string(dir.path().join(".config").join("metadata.json")).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.font_family, "serif");
+        assert!(meta.visible_tabs.chapters, "visible_tabs should survive");
+        assert_eq!(meta.auto_save_interval_minutes, 5, "auto_save_interval should survive");
     }
 
     // ========================================================================

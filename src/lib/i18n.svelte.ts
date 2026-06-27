@@ -398,7 +398,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "globalSettings.title": "Preferencias de la aplicación",
     "globalSettings.language": "Idioma",
     "globalSettings.theme": "Tema",
-    "globalSettings.close": "Cerrar",
+    "globalSettings.close": "Aceptar",
 
     // ── Project Config Form ────────────────────────────────
     "config.titleNew": "Configurar nuevo proyecto",
@@ -830,7 +830,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "globalSettings.title": "Application Preferences",
     "globalSettings.language": "Language",
     "globalSettings.theme": "Theme",
-    "globalSettings.close": "Close",
+    "globalSettings.close": "Accept",
 
     // ── Project Config Form ────────────────────────────────
     "config.titleNew": "Configure new project",

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t, lang } from "$lib/i18n.svelte";
   import {
+    actualizarConfigProyecto,
     actualizarFuenteProyecto,
     cargarIdentidadGit,
     guardarIdentidadGit,
@@ -15,11 +16,14 @@
     open = $bindable(false),
     projectPath = "",
     currentFontFamily = "monospace",
+    currentVisibleTabs = {} as Record<string, boolean>,
+    currentAutoSaveInterval = 5,
     onFontSaved = (_font: string) => {},
+    onConfigSaved = (_config: {visible_tabs: Record<string,boolean>; auto_save_interval_minutes: number}) => {},
   } = $props();
 
   // ── Tab state ──────────────────────────────────────────────
-  type Tab = "font" | "identity" | "remote";
+  type Tab = "font" | "tabs" | "autosave" | "identity" | "remote";
   let activeTab = $state<Tab>("font");
 
   // ── Font panel state ───────────────────────────────────────
@@ -27,6 +31,18 @@
   let fontSaving = $state(false);
   let fontError = $state("");
   let fontSuccess = $state(false);
+
+  // ── Tabs panel state ───────────────────────────────────────
+  let tabsConfig = $state<Record<string, boolean>>({});
+  let tabsSaving = $state(false);
+  let tabsError = $state("");
+  let tabsSuccess = $state(false);
+
+  // ── Autosave panel state ───────────────────────────────────
+  let autoSaveInterval = $state(5);
+  let autoSaveSaving = $state(false);
+  let autoSaveError = $state("");
+  let autoSaveSuccess = $state(false);
 
   // ── Identity panel state ───────────────────────────────────
   let identityName = $state("");
@@ -52,6 +68,17 @@
       fontError = "";
       fontSuccess = false;
       fontSaving = false;
+
+      tabsConfig = { ...currentVisibleTabs };
+      tabsError = "";
+      tabsSuccess = false;
+      tabsSaving = false;
+
+      autoSaveInterval = currentAutoSaveInterval;
+      autoSaveError = "";
+      autoSaveSuccess = false;
+      autoSaveSaving = false;
+
       activeTab = "font";
 
       identityName = "";
@@ -97,6 +124,48 @@
     selectedFont = currentFontFamily;
     fontError = "";
     fontSuccess = false;
+  }
+
+  // ── Tabs panel ─────────────────────────────────────────────
+
+  async function saveTabs() {
+    tabsSaving = true;
+    tabsError = "";
+    tabsSuccess = false;
+    try {
+      const result = await actualizarConfigProyecto(projectPath, { visible_tabs: tabsConfig });
+      const meta = JSON.parse(result);
+      tabsSuccess = true;
+      onConfigSaved({
+        visible_tabs: meta.visible_tabs || tabsConfig,
+        auto_save_interval_minutes: meta.auto_save_interval_minutes || autoSaveInterval,
+      });
+    } catch (e) {
+      tabsError = String(e);
+    } finally {
+      tabsSaving = false;
+    }
+  }
+
+  // ── Autosave panel ─────────────────────────────────────────
+
+  async function saveAutoSave() {
+    autoSaveSaving = true;
+    autoSaveError = "";
+    autoSaveSuccess = false;
+    try {
+      const result = await actualizarConfigProyecto(projectPath, { auto_save_interval_minutes: autoSaveInterval });
+      const meta = JSON.parse(result);
+      autoSaveSuccess = true;
+      onConfigSaved({
+        visible_tabs: meta.visible_tabs || tabsConfig,
+        auto_save_interval_minutes: meta.auto_save_interval_minutes || autoSaveInterval,
+      });
+    } catch (e) {
+      autoSaveError = String(e);
+    } finally {
+      autoSaveSaving = false;
+    }
   }
 
   // ── Identity panel ─────────────────────────────────────────
@@ -261,6 +330,16 @@
         >{t("settings.font")}</button>
         <button
           class="settings-tab"
+          class:active={activeTab === "tabs"}
+          onclick={() => activeTab = "tabs"}
+        >{t("config.stepTabs")}</button>
+        <button
+          class="settings-tab"
+          class:active={activeTab === "autosave"}
+          onclick={() => activeTab = "autosave"}
+        >{t("config.stepAutoSave")}</button>
+        <button
+          class="settings-tab"
           class:active={activeTab === "identity"}
           onclick={() => activeTab = "identity"}
         >{t("settings.identity")}</button>
@@ -317,6 +396,75 @@
                 disabled={fontSaving || selectedFont === currentFontFamily}
               >
                 {fontSaving ? t("settings.saving") : t("settings.save")}
+              </button>
+            </div>
+          </div>
+        {:else if activeTab === "tabs"}
+          <!-- ═══ Tabs Panel ═══ -->
+          <div class="tabs-panel">
+            <p class="step-desc">{t("config.tabsHint")}</p>
+            <div class="tabs-checklist">
+              <label class="tab-checkbox-label disabled">
+                <input type="checkbox" checked disabled />
+                <span class="tab-checkbox-text">{t("config.tabsChapters")}</span>
+              </label>
+              {#each [{key: "characters", label: t("config.tabsCharacters")}, {key: "places", label: t("config.tabsPlaces")}, {key: "timeline", label: t("config.tabsTimeline")}, {key: "notes", label: t("config.tabsNotes")}] as tab}
+                <label class="tab-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={tabsConfig[tab.key] !== false}
+                    onchange={() => tabsConfig[tab.key] = tabsConfig[tab.key] === false ? true : false}
+                  />
+                  <span class="tab-checkbox-text">{tab.label}</span>
+                </label>
+              {/each}
+            </div>
+
+            {#if tabsError}
+              <p class="error-msg">{tabsError}</p>
+            {/if}
+            {#if tabsSuccess}
+              <p class="success-msg">{t("settings.saved")}</p>
+            {/if}
+
+            <div class="modal-actions">
+              <button class="btn-secondary" onclick={closeDialog} disabled={tabsSaving}>{t("settings.cancel")}</button>
+              <button class="btn-primary" onclick={saveTabs} disabled={tabsSaving}>
+                {tabsSaving ? t("settings.saving") : t("settings.save")}
+              </button>
+            </div>
+          </div>
+        {:else if activeTab === "autosave"}
+          <!-- ═══ Auto-Save Panel ═══ -->
+          <div class="autosave-panel">
+            <p class="step-desc">{t("config.intervalHint")}</p>
+            <fieldset class="interval-radio-group">
+              <legend class="sr-only">{t("config.intervalLabel")}</legend>
+              {#each [{value: 1, label: t("config.interval1")}, {value: 5, label: t("config.interval5")}, {value: 10, label: t("config.interval10")}] as opt}
+                <label class="interval-radio-label">
+                  <input
+                    type="radio"
+                    name="auto-save-interval"
+                    value={opt.value}
+                    checked={autoSaveInterval === opt.value}
+                    onchange={() => autoSaveInterval = opt.value}
+                  />
+                  <span class="interval-radio-text">{opt.label}</span>
+                </label>
+              {/each}
+            </fieldset>
+
+            {#if autoSaveError}
+              <p class="error-msg">{autoSaveError}</p>
+            {/if}
+            {#if autoSaveSuccess}
+              <p class="success-msg">{t("settings.saved")}</p>
+            {/if}
+
+            <div class="modal-actions">
+              <button class="btn-secondary" onclick={closeDialog} disabled={autoSaveSaving}>{t("settings.cancel")}</button>
+              <button class="btn-primary" onclick={saveAutoSave} disabled={autoSaveSaving}>
+                {autoSaveSaving ? t("settings.saving") : t("settings.save")}
               </button>
             </div>
           </div>
@@ -780,5 +928,106 @@
   @keyframes fadeIn {
     from { opacity: 0; }
     to   { opacity: 1; }
+  }
+
+  /* ── Tabs & Autosave panel styles ────────────── */
+  .step-desc {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin: 0 0 1rem;
+    line-height: 1.5;
+  }
+
+  :global(.dark) .step-desc {
+    color: #94a3b8;
+  }
+
+  .tabs-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .tab-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    cursor: pointer;
+  }
+
+  :global(.dark) .tab-checkbox-label {
+    border-color: #334155;
+  }
+
+  .tab-checkbox-label.disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background: #f1f5f9;
+  }
+
+  :global(.dark) .tab-checkbox-label.disabled {
+    background: #1e293b;
+  }
+
+  .tab-checkbox-label input[type="checkbox"] {
+    accent-color: #3b82f6;
+  }
+
+  .tab-checkbox-text {
+    font-size: 0.875rem;
+    color: #1e293b;
+  }
+
+  :global(.dark) .tab-checkbox-text {
+    color: #f1f5f9;
+  }
+
+  .interval-radio-group {
+    border: none;
+    padding: 0;
+    margin: 0 0 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .interval-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: border-color 150ms;
+  }
+
+  .interval-radio-label:has(input:checked) {
+    border-color: #3b82f6;
+  }
+
+  :global(.dark) .interval-radio-label {
+    border-color: #334155;
+  }
+
+  :global(.dark) .interval-radio-label:has(input:checked) {
+    border-color: #60a5fa;
+  }
+
+  .interval-radio-label input[type="radio"] {
+    accent-color: #3b82f6;
+  }
+
+  .interval-radio-text {
+    font-size: 0.9375rem;
+    color: #1e293b;
+  }
+
+  :global(.dark) .interval-radio-text {
+    color: #f1f5f9;
   }
 </style>

@@ -6,9 +6,11 @@
   import EditorContextMenu from "$lib/components/EditorContextMenu.svelte";
   import GitIdentityDialog from "$lib/components/GitIdentityDialog.svelte";
   import ProjectSettingsDialog from "$lib/components/ProjectSettingsDialog.svelte";
+  import ProjectConfigForm from "$lib/ProjectConfigForm.svelte";
   import { debounce } from "$lib/debounce";
   import { t, setLang, lang } from "$lib/i18n.svelte";
   import {
+    actualizarConfigProyecto,
     actualizarFuenteProyecto,
     actualizarLugar,
     actualizarPersonaje,
@@ -297,6 +299,10 @@
   let activeChapter = $state("");
   let editorContent = $state("");
   let fontFamily = $state("monospace");
+  let visibleTabs = $state<Record<string, boolean>>({});
+  let autoSaveInterval = $state(5);
+  let configFormOpen = $state(false);
+  let configFormResolve = $state<((v: {font_family: string; visible_tabs: Record<string,boolean>; auto_save_interval_minutes: number}) => void) | null>(null);
   let fontPickerOpen = $state(false);
   let fontPickerFont = $state("monospace");
   let fontPickerResolve = $state<((v: string) => void) | null>(null);
@@ -487,8 +493,18 @@
     }
   }
 
-  // ── Debounced auto-save (20 s after last keystroke) ──────────
-  const save = debounce(doSave, 20_000);
+  // ── Dynamic auto-save: recreates debounce when interval changes ──
+  let saveTrigger = $state<{ trigger: () => void; cancel: () => void }>({
+    trigger: () => { doSave(); },
+    cancel: () => {},
+  });
+
+  $effect(() => {
+    const interval = autoSaveInterval * 60_000;
+    const debounced = debounce(doSave, interval);
+    saveTrigger = debounced;
+    return () => { debounced.cancel(); };
+  });
 
   // ── Editor callbacks ────────────────────────────────────────
   let cercaDelFinal = $state(false);
@@ -496,13 +512,13 @@
   function handleEditorUpdate(html: string): void {
     editorContent = html;
     saveStatus = "unsaved";
-    save.trigger();
+    saveTrigger.trigger();
   }
 
   // ── Chapter operations ──────────────────────────────────────
   async function cargarCapituloActual(filename: string): Promise<void> {
     if (!projectPath) return;
-    save.cancel();
+    saveTrigger.cancel();
     console.log("[cron-insta] Loading chapter:", filename);
     try {
       const content = await cargarCapitulo(projectPath, filename);
@@ -794,8 +810,11 @@
       const name = await pickText(t("dialog.projectName"), t("dialog.projectNameDefault"));
       if (!name) return;
 
-      // Font selection — show picker modal
-      fontFamily = await pickFont();
+      // Font + tabs + autosave via ProjectConfigForm
+      const config = await showProjectConfig();
+      fontFamily = config.font_family;
+      visibleTabs = config.visible_tabs;
+      autoSaveInterval = config.auto_save_interval_minutes;
 
       const path = `${selected}/${name.trim()}`;
 
@@ -815,7 +834,14 @@
 
       console.log("[cron-insta] Creating project:", { path, name });
       try {
-        const msg = await crearProyecto(path, name.trim(), fontFamily);
+        const visibleTabsForRust = {
+          chapters: config.visible_tabs.chapters !== false,
+          characters: config.visible_tabs.characters !== false,
+          places: config.visible_tabs.places !== false,
+          timeline: config.visible_tabs.timeline !== false,
+          notes: config.visible_tabs.notes !== false,
+        };
+        const msg = await crearProyecto(path, name.trim(), fontFamily, visibleTabsForRust, autoSaveInterval);
         console.log("[cron-insta] Project created:", msg);
         projectPath = path;
         setActiveProject(path);
@@ -1024,6 +1050,8 @@
       const meta = JSON.parse(raw);
       chapters = meta.chapters_order ?? [];
       fontFamily = meta.font_family || "monospace";
+      visibleTabs = meta.visible_tabs || {};
+      autoSaveInterval = meta.auto_save_interval_minutes || 5;
       await actualizarGitStatus(path);
 
       // Reload current chapter or fallback to first
@@ -1066,6 +1094,8 @@
       projectPath = path;
       setActiveProject(path);
       fontFamily = meta.font_family || "monospace";
+      visibleTabs = meta.visible_tabs || {};
+      autoSaveInterval = meta.auto_save_interval_minutes || 5;
       await actualizarGitStatus(path);
       detectarYGuardarConfigGit(path); // fire-and-forget
       // After a short delay (let auto-detect finish), check for remote updates
@@ -1184,6 +1214,8 @@
       const meta = JSON.parse(raw);
       chapters = meta.chapters_order ?? [];
       fontFamily = meta.font_family || "monospace";
+      visibleTabs = meta.visible_tabs || {};
+      autoSaveInterval = meta.auto_save_interval_minutes || 5;
       if (chapters.length > 0) {
         await cargarCapituloActual(chapters[0]);
       }
@@ -1248,12 +1280,11 @@
     }
   }
 
-  /** Show font picker modal and return selected font. */
-  function pickFont(): Promise<string> {
+  /** Show project config form modal (replaces pickFont). Returns full config. */
+  function showProjectConfig(): Promise<{font_family: string; visible_tabs: Record<string,boolean>; auto_save_interval_minutes: number}> {
     return new Promise((resolve) => {
-      fontPickerFont = fontFamily;
-      fontPickerOpen = true;
-      fontPickerResolve = resolve;
+      configFormOpen = true;
+      configFormResolve = resolve;
     });
   }
 
@@ -1309,7 +1340,7 @@
   }
 
   async function seleccionarPersonaje(id: string): Promise<void> {
-    save.trigger(); // save current work first
+    saveTrigger.trigger(); // save current work first
     // Toggle: if already expanded, collapse; otherwise load and expand
     if (personajeExpandido === id) {
       personajeExpandido = null;
@@ -1404,7 +1435,7 @@
   }
 
   async function cargarNotaHandler(id: string): Promise<void> {
-    save.trigger(); // save current work first
+    saveTrigger.trigger(); // save current work first
     try {
       const raw = await cargarNota(projectPath, id);
       editorRef?.setContent(raw);
@@ -1582,7 +1613,7 @@
   }
 
   async function seleccionarLugar(id: string): Promise<void> {
-    save.trigger();
+    saveTrigger.trigger();
     if (lugarExpandido === id) {
       lugarExpandido = null;
       lugarEditando = null;
@@ -1712,6 +1743,8 @@
         projectPath = lastPath;
         setActiveProject(lastPath);
         fontFamily = meta.font_family || "monospace";
+        visibleTabs = meta.visible_tabs || {};
+        autoSaveInterval = meta.auto_save_interval_minutes || 5;
         await actualizarGitStatus(lastPath);
         detectarYGuardarConfigGit(lastPath); // fire-and-forget
         setTimeout(() => verificarYOfrecerPull(lastPath), 1500);
@@ -1789,7 +1822,7 @@
     if (e.ctrlKey && !e.shiftKey && e.key === "s") {
       e.preventDefault();
       saveStatus = "saving";
-      save.trigger();
+      saveTrigger.trigger();
       return;
     }
 
@@ -1881,13 +1914,34 @@
       return;
     }
 
-    // Ctrl+T — cycle sidebar tabs: capítulos → personajes → notas → timeline → lugares
+    // Ctrl+T — cycle visible sidebar tabs (skips hidden tabs)
     if (e.ctrlKey && !e.shiftKey && (e.key === "t" || e.key === "T")) {
       e.preventDefault();
-      const order: string[] = ["capitulos", "personajes", "notas", "timeline", "lugares"];
-      const idx = order.indexOf(activeTab);
-      activeTab = order[(idx + 1) % order.length] as typeof activeTab;
-      // Focus first item in the new tab so arrow keys work immediately
+      type TabName = "capitulos" | "personajes" | "notas" | "timeline" | "lugares";
+      const fullOrder: Record<TabName, TabName[]> = {
+        capitulos: ["capitulos", "personajes", "notas", "timeline", "lugares"],
+        personajes: ["personajes", "notas", "timeline", "lugares", "capitulos"],
+        notas: ["notas", "timeline", "lugares", "capitulos", "personajes"],
+        timeline: ["timeline", "lugares", "capitulos", "personajes", "notas"],
+        lugares: ["lugares", "capitulos", "personajes", "notas", "timeline"],
+      };
+      const candidates = fullOrder[activeTab] || fullOrder["capitulos"];
+      const tabKeyMap: Record<TabName, string> = {
+        capitulos: "chapters",
+        personajes: "characters",
+        notas: "notes",
+        timeline: "timeline",
+        lugares: "places",
+      };
+      let next: TabName = activeTab;
+      for (const candidate of candidates) {
+        const vk = tabKeyMap[candidate];
+        if (!vk || vk === "chapters" || visibleTabs[vk] !== false) {
+          next = candidate;
+          break;
+        }
+      }
+      activeTab = next;
       setTimeout(() => {
         const firstBtn = document.querySelector<HTMLElement>(".sidebar-content button.chapter-link");
         firstBtn?.focus();
@@ -1967,42 +2021,41 @@
   style:grid-template-columns={sidebarCollapsed ? "0 100%" : `${sidebarPct}% ${100 - sidebarPct}%`}
 >
   <!-- Sidebar (40 % when visible) — placeholder, not modified per spec -->
-  <aside class="sidebar">
+   <aside class="sidebar">
     <nav class="tabs">
-      <button
-        class="tab"
-        class:active={activeTab === "capitulos"}
+      <!-- Chapters always visible -->
+      <button class="tab" class:active={activeTab === "capitulos"}
         onclick={() => { pendingDelete = null; activeTab = "capitulos"; activeNote = ""; }}
         title={t("tabs.chapters")}
       ><Notebook size={18} weight="light" color="currentColor" /></button>
-      <button
-        class="tab"
-        class:active={activeTab === "personajes"}
-        onclick={() => { pendingDelete = null; activeTab = "personajes"; }}
-        title={t("tabs.characters")}
-      ><User size={18} weight="light" color="currentColor" /></button>
-      <button
-        class="tab"
-        class:active={activeTab === "notas"}
-        onclick={() => { pendingDelete = null; activeTab = "notas"; }}
-        title={t("tabs.notes")}
-      ><Notepad size={18} weight="light" color="currentColor" /></button>
-      <button
-        class="tab"
-        class:active={activeTab === "timeline"}
-        onclick={() => { pendingDelete = null; activeTab = "timeline"; }}
-        title={t("tabs.timeline")}
-      ><Clock size={18} weight="light" color="currentColor" />
-        {#if timeline.length > 0}
-          <span class="timeline-badge">{timeline.length}</span>
-        {/if}
-      </button>
-      <button
-        class="tab"
-        class:active={activeTab === "lugares"}
-        onclick={() => { pendingDelete = null; activeTab = "lugares"; }}
-        title={t("tabs.places")}
-      ><MapTrifold size={18} weight="light" color="currentColor" /></button>
+      {#if visibleTabs.characters !== false}
+        <button class="tab" class:active={activeTab === "personajes"}
+          onclick={() => { pendingDelete = null; activeTab = "personajes"; }}
+          title={t("tabs.characters")}
+        ><User size={18} weight="light" color="currentColor" /></button>
+      {/if}
+      {#if visibleTabs.notes !== false}
+        <button class="tab" class:active={activeTab === "notas"}
+          onclick={() => { pendingDelete = null; activeTab = "notas"; }}
+          title={t("tabs.notes")}
+        ><Notepad size={18} weight="light" color="currentColor" /></button>
+      {/if}
+      {#if visibleTabs.timeline !== false}
+        <button class="tab" class:active={activeTab === "timeline"}
+          onclick={() => { pendingDelete = null; activeTab = "timeline"; }}
+          title={t("tabs.timeline")}
+        ><Clock size={18} weight="light" color="currentColor" />
+          {#if timeline.length > 0}
+            <span class="timeline-badge">{timeline.length}</span>
+          {/if}
+        </button>
+      {/if}
+      {#if visibleTabs.places !== false}
+        <button class="tab" class:active={activeTab === "lugares"}
+          onclick={() => { pendingDelete = null; activeTab = "lugares"; }}
+          title={t("tabs.places")}
+        ><MapTrifold size={18} weight="light" color="currentColor" /></button>
+      {/if}
     </nav>
 
     <div class="sidebar-content">
@@ -2977,7 +3030,13 @@
   bind:open={settingsOpen}
   projectPath={projectPath}
   currentFontFamily={fontFamily}
+  currentVisibleTabs={visibleTabs}
+  currentAutoSaveInterval={autoSaveInterval}
   onFontSaved={(font: string) => { fontFamily = font; }}
+  onConfigSaved={(config: {visible_tabs: Record<string,boolean>; auto_save_interval_minutes: number}) => {
+    visibleTabs = config.visible_tabs;
+    autoSaveInterval = config.auto_save_interval_minutes;
+  }}
 />
 
 <!-- Editor context menu -->
@@ -3192,7 +3251,35 @@
   </div>
 {/if}
 
-{#if fontPickerOpen}
+{#if configFormOpen}
+  <!-- Project config wizard modal -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" role="dialog" tabindex="-1"
+    aria-label={t("config.titleNew")}
+    onkeydown={(e) => e.key === "Escape" && (configFormOpen = false)}>
+    <div class="modal-panel config-form-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+      <h2>{t("config.titleNew")}</h2>
+      <ProjectConfigForm mode="new"
+        onComplete={(config) => {
+          configFormOpen = false;
+          configFormResolve?.({
+            font_family: config.font_family,
+            visible_tabs: config.visible_tabs as unknown as Record<string, boolean>,
+            auto_save_interval_minutes: config.auto_save_interval_minutes,
+          });
+        }}
+        onCancel={() => {
+          configFormOpen = false;
+          configFormResolve?.({
+            font_family: "monospace",
+            visible_tabs: { chapters: true, characters: true, places: true, timeline: true, notes: true },
+            auto_save_interval_minutes: 5,
+          });
+        }}
+      />
+    </div>
+  </div>
+{:else if fontPickerOpen}
   <!-- Font picker modal with live preview -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -4532,6 +4619,10 @@
   }
 
   /* ── Font picker ─────────────────────────────────────────────── */
+  .config-form-panel {
+    max-width: 640px;
+  }
+
   .font-picker-panel {
     max-width: 580px;
   }

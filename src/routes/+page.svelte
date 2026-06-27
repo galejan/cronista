@@ -32,6 +32,9 @@
     crearNota,
     crearPersonaje,
     crearProyecto,
+    crearTrama,
+    eliminarTrama,
+    asignarCapituloTrama,
     detectarConfigGit,
     detectarGit,
     eliminarCapitulo,
@@ -63,6 +66,7 @@
     verificarGitInicializado,
   } from "$lib/tauri";
   import type { GitLogEntry } from "$lib/tauri";
+  import type { Trama, ChapterTrama } from "$lib/tauri";
   import { documentDir } from "@tauri-apps/api/path";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { PhysicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
@@ -276,6 +280,43 @@
   let zoomLevel = $state(0); // 0=normal, 1=medium, 2=large
   let exportModal = $state(false);
   let chapters = $state<string[]>([]);
+  let tramas = $state<Trama[]>([]);
+  let chapterTramas = $state<ChapterTrama[]>([]);
+  let tramasCollapsed = $state<Set<string>>(new Set());
+  let tramaPendingDelete = $state<string | null>(null);
+
+  // Derived: group chapters by trama_id, ordered by chapters_order
+  let chaptersByTrama = $derived.by(() => {
+    const groups = new Map<string | null, string[]>();
+    for (const t of tramas) {
+      groups.set(t.id, []);
+    }
+    groups.set(null, []); // unassigned
+    const lookup = new Map<string, string | null>();
+    for (const ct of chapterTramas) {
+      lookup.set(ct.filename, ct.trama_id ?? null);
+    }
+    for (const ch of chapters) {
+      const tid = lookup.get(ch) ?? null;
+      if (!groups.has(tid)) {
+        groups.set(tid, []);
+      }
+      groups.get(tid)!.push(ch);
+    }
+    return groups;
+  });
+
+  // Derived: ordered sections for rendering
+  let tramaSections = $derived.by(() => {
+    const sections: Array<{ tramaId: string | null; nombre: string | null; chapters: string[] }> = [];
+    for (const t of tramas) {
+      const chs = chaptersByTrama.get(t.id) ?? [];
+      sections.push({ tramaId: t.id, nombre: t.nombre, chapters: chs });
+    }
+    const unassigned = chaptersByTrama.get(null) ?? [];
+    sections.push({ tramaId: null, nombre: null, chapters: unassigned });
+    return sections;
+  });
   let pendingDelete = $state<string | null>(null);
   let activeChapter = $state("");
   let editorContent = $state("");
@@ -295,6 +336,13 @@
   let textPickerDefault = $state("");
   let textPickerResolve = $state<((v: string | null) => void) | null>(null);
 
+  // ── Trama selector dialog ──────────────────────────────────
+  let tramaSelectorOpen = $state(false);
+  let tramaSelectorFilename = $state("");
+  let tramaSelectorTitle = $state("");
+  let tramaSelectorInitialHTML = $state("");
+  let tramaSelectorResolve = $state<((v: string | null | undefined) => void) | null>(null);
+
   /** Show a text input modal and return the value (or null if cancelled). */
   function pickText(message: string, defaultValue?: string): Promise<string | null> {
     return new Promise((resolve) => {
@@ -304,6 +352,120 @@
       textPickerOpen = true;
       textPickerResolve = resolve;
     });
+  }
+
+  /** Show the 3-option trama selector dialog. Returns trama_id, null (skip), or undefined (cancel). */
+  function pickTramaForChapter(): Promise<string | null | undefined> {
+    return new Promise((resolve) => {
+      tramaSelectorResolve = resolve;
+      tramaSelectorOpen = true;
+    });
+  }
+  function resolveTramaSelector(value: string | null | undefined) {
+    const r = tramaSelectorResolve;
+    tramaSelectorOpen = false;
+    tramaSelectorResolve = null;
+    r?.(value);
+  }
+
+  async function handleTramaSelectExisting(): Promise<void> {
+    if (tramas.length === 0) {
+      await message("No hay tramas disponibles.");
+      resolveTramaSelector(undefined);
+      return;
+    }
+    tramaSelectorOpen = false; // hide dialog temporarily
+    const name = await pickText(t("tramas.selectExisting"), tramas[0]?.nombre || "");
+    if (!name) { resolveTramaSelector(undefined); return; }
+    const found = tramas.find(t => t.nombre === name.trim());
+    resolveTramaSelector(found ? found.id : null);
+  }
+
+  async function handleTramaSelectNew(): Promise<void> {
+    tramaSelectorOpen = false; // hide dialog temporarily
+    const name = await pickText(t("tramas.selectNewPrompt"));
+    if (!name?.trim()) { resolveTramaSelector(undefined); return; }
+    try {
+      const trama = await crearTrama(projectPath, name.trim());
+      await refreshChapters();
+      resolveTramaSelector(trama.id);
+    } catch (e) {
+      console.error("[cron-insta] Create trama failed:", e);
+      await message(`${t("tramas.createError")} ${e}`);
+      resolveTramaSelector(undefined);
+    }
+  }
+
+  function handleTramaSelectSkip(): void {
+    resolveTramaSelector(null);
+  }
+
+  async function handleNuevaTrama(): Promise<void> {
+    if (!projectPath) return;
+    const nombre = await pickText(t("tramas.newPrompt"));
+    if (!nombre?.trim()) return;
+    try {
+      await crearTrama(projectPath, nombre.trim());
+      await refreshChapters();
+    } catch (e) {
+      console.error("[cron-insta] Create trama failed:", e);
+      await message(`${t("tramas.createError")} ${e}`);
+    }
+  }
+
+  async function handleEliminarTrama(id: string): Promise<void> {
+    if (tramaPendingDelete === id) {
+      // Second click — execute deletion
+      try {
+        await eliminarTrama(projectPath, id);
+        await refreshChapters();
+      } catch (e) {
+        console.error("[cron-insta] Delete trama failed:", e);
+        await message(`${t("tramas.deleteError")} ${e}`);
+      }
+      tramaPendingDelete = null;
+    } else {
+      tramaPendingDelete = id;
+      setTimeout(() => { tramaPendingDelete = null; }, 3_000);
+    }
+  }
+
+  async function handleDropOnTrama(e: DragEvent, tramaId: string | null): Promise<void> {
+    e.preventDefault();
+    if (!dragChapter) return;
+    const chapterFilename = dragChapter;
+    dragChapter = null;
+
+    // Clean up drag-over classes
+    document.querySelectorAll(".trama-group.drag-over").forEach(el => {
+      el.classList.remove("drag-over");
+    });
+
+    const tramaName = tramaId ? tramas.find(t => t.id === tramaId)?.nombre || "" : "";
+    const confirmMsg = tramaId
+      ? t("tramas.moveConfirm").replace("{chapter}", chapterFilename).replace("{trama}", tramaName)
+      : t("tramas.moveToUnassigned").replace("{chapter}", chapterFilename);
+
+    const confirmed = await ask(confirmMsg);
+    if (!confirmed) return;
+
+    try {
+      await asignarCapituloTrama(projectPath, chapterFilename, tramaId);
+      await refreshChapters();
+    } catch (e) {
+      console.error("[cron-insta] Assign chapter to trama failed:", e);
+      await message(`${t("tramas.assignError")} ${e}`);
+    }
+  }
+
+  function toggleTramaCollapse(id: string): void {
+    if (tramasCollapsed.has(id)) {
+      tramasCollapsed.delete(id);
+    } else {
+      tramasCollapsed.add(id);
+    }
+    // Trigger reactivity
+    tramasCollapsed = new Set(tramasCollapsed);
   }
   let saveStatus = $state<"" | "saved" | "unsaved" | "saving">("");
 
@@ -530,6 +692,8 @@
       const raw = await cargarIndice(projectPath);
       const meta = JSON.parse(raw);
       chapters = meta.chapters_order ?? [];
+      tramas = meta.tramas ?? [];
+      chapterTramas = meta.chapter_tramas ?? [];
       console.log("[cron-insta] Chapters refreshed:", chapters);
     } catch (e) {
       console.error("[cron-insta] Failed to read project index:", e);
@@ -649,7 +813,7 @@
     const html = `<h1>${titulo}</h1><p>${text.replace(/\n/g, "</p><p>")}</p>`;
 
     try {
-      await crearCapitulo(projectPath, sanitized, html);
+      await crearCapitulo(projectPath, sanitized, html, null);
       await refreshChapters();
       // Optionally switch to the new chapter
       await cargarCapituloActual(sanitized);
@@ -891,9 +1055,13 @@
       .trim() || t("chapters.untitled");
     const initialHTML = `<h1>${titulo}</h1><p></p>`;
 
-    console.log("[cron-insta] Creating chapter:", filename);
+    // Show trama selector dialog
+    const tramaId = await pickTramaForChapter();
+    if (tramaId === undefined) return; // user cancelled
+
+    console.log("[cron-insta] Creating chapter:", filename, "tramaId:", tramaId);
     try {
-      const msg = await crearCapitulo(projectPath, filename, initialHTML);
+      const msg = await crearCapitulo(projectPath, filename, initialHTML, tramaId);
       console.log("[cron-insta] Chapter created:", msg);
       activeChapter = filename;
       editorRef?.setContent(initialHTML);
@@ -1039,6 +1207,8 @@
       const raw = await cargarIndice(path);
       const meta = JSON.parse(raw);
       chapters = meta.chapters_order ?? [];
+      tramas = meta.tramas ?? [];
+      chapterTramas = meta.chapter_tramas ?? [];
       fontFamily = meta.font_family || "monospace";
       visibleTabs = meta.visible_tabs || {};
       autoSaveInterval = meta.auto_save_interval_minutes || 5;
@@ -1091,6 +1261,8 @@
       // After a short delay (let auto-detect finish), check for remote updates
       setTimeout(() => verificarYOfrecerPull(path), 1500);
       chapters = meta.chapters_order ?? [];
+      tramas = meta.tramas ?? [];
+      chapterTramas = meta.chapter_tramas ?? [];
       console.log("[cron-insta] Project opened:", meta.project_name, chapters);
 
       // Warn if git is unavailable
@@ -1131,6 +1303,10 @@
     // Clear all frontend state
     projectPath = "";
     chapters = [];
+    tramas = [];
+    chapterTramas = [];
+    tramasCollapsed = new Set();
+    tramaPendingDelete = null;
     activeChapter = "";
     editorContent = "";
     saveStatus = "";
@@ -1203,6 +1379,8 @@
       const raw = await cargarIndice(importedPath);
       const meta = JSON.parse(raw);
       chapters = meta.chapters_order ?? [];
+      tramas = meta.tramas ?? [];
+      chapterTramas = meta.chapter_tramas ?? [];
       fontFamily = meta.font_family || "monospace";
       visibleTabs = meta.visible_tabs || {};
       autoSaveInterval = meta.auto_save_interval_minutes || 5;
@@ -1650,6 +1828,7 @@
 
   // ── Drag-and-drop reorder ────────────────────────────────────
   let dragId = $state<string | null>(null);
+  let dragChapter = $state<string | null>(null);
 
   function handleDragStart(e: DragEvent, id: string) {
     dragId = id;
@@ -1739,6 +1918,8 @@
         detectarYGuardarConfigGit(lastPath); // fire-and-forget
         setTimeout(() => verificarYOfrecerPull(lastPath), 1500);
         chapters = meta.chapters_order ?? [];
+        tramas = meta.tramas ?? [];
+        chapterTramas = meta.chapter_tramas ?? [];
         console.log("[cron-insta] Project reopened:", meta.project_name, chapters);
 
         if (chapters.length > 0) {
@@ -2055,29 +2236,102 @@
           {#if chapters.length > 0}
             <p class="chapter-list-label">{t("chapters.label")}</p>
             <ul class="chapter-list" role="listbox" onkeydown={handleListKeydown}>
-              {#each chapters as ch}
-                <li class="chapter-row">
-                  <button
-                    class="chapter-link"
-                    class:active-chapter={activeChapter === ch}
-                    onclick={() => { pendingDelete = null; activeNote = ""; cargarCapituloActual(ch); }}
+              {#each tramaSections as section}
+                {@const isUnassigned = section.tramaId === null}
+                {@const tramaName = section.nombre ?? t("tramas.unassigned")}
+                {@const chapterCount = section.chapters.length}
+                {#if !isUnassigned || chapterCount > 0 || tramas.length === 0}
+                  <li
+                    class="trama-group"
+                    class:drag-over={false}
+                    ondragover={(e) => {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLElement).classList.add("drag-over");
+                    }}
+                    ondragleave={(e) => {
+                      (e.currentTarget as HTMLElement).classList.remove("drag-over");
+                    }}
+                    ondrop={(e) => handleDropOnTrama(e, section.tramaId)}
                   >
-                    {ch}
-                  </button>
-                  {#if pendingDelete === ch}
-                    <button
-                      class="delete-confirm"
-                      title={t("chapters.confirmDeleteTitle")}
-                      onclick={() => eliminarCapituloHandler(ch)}
-                    >{t("chapters.confirmDelete")}</button>
-                  {:else}
-                    <button
-                      class="item-delete"
-                      title={t("chapters.deleteTitle")}
-                      onclick={() => eliminarCapituloHandler(ch)}
-                    ><X size={16} weight="light" color="currentColor" /></button>
-                  {/if}
-                </li>
+                    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                    <div class="trama-header"
+                      class:unassigned={isUnassigned}
+                      onclick={() => !isUnassigned && toggleTramaCollapse(section.tramaId!)}
+                      onkeydown={(e) => { if (e.key === "Enter" && !isUnassigned) toggleTramaCollapse(section.tramaId!); }}
+                      role={isUnassigned ? undefined : "button"}
+                      tabindex={isUnassigned ? undefined : 0}
+                    >
+                      <span class="trama-caret">
+                        {#if !isUnassigned}
+                          {#if tramasCollapsed.has(section.tramaId!)}
+                            <CaretRight size={14} weight="light" color="currentColor" />
+                          {:else}
+                            <CaretDown size={14} weight="light" color="currentColor" />
+                          {/if}
+                        {:else}
+                          <span></span>
+                        {/if}
+                      </span>
+                      <span class="trama-name">{tramaName}</span>
+                      <span class="trama-count">{chapterCount}</span>
+                      {#if !isUnassigned}
+                        {#if tramaPendingDelete === section.tramaId}
+                          <button
+                            class="trama-delete-confirm"
+                            title={t("tramas.deleteConfirm")}
+                            onclick={(e) => { e.stopPropagation(); handleEliminarTrama(section.tramaId!); }}
+                          >{t("common.delete")}</button>
+                        {:else}
+                          <button
+                            class="trama-delete"
+                            title={t("tramas.deleteConfirm")}
+                            onclick={(e) => { e.stopPropagation(); handleEliminarTrama(section.tramaId!); }}
+                          ><X size={14} weight="light" color="currentColor" /></button>
+                        {/if}
+                      {/if}
+                    </div>
+                    {#if isUnassigned || !tramasCollapsed.has(section.tramaId!)}
+                      <ul class="chapter-list trama-chapters">
+                        {#each section.chapters as ch}
+                          <li class="chapter-row"
+                            draggable="true"
+                            ondragstart={(e) => {
+                              dragChapter = ch;
+                              (e.currentTarget as HTMLElement).classList.add("dragging");
+                            }}
+                            ondragend={(e) => {
+                              (e.currentTarget as HTMLElement).classList.remove("dragging");
+                            }}
+                          >
+                            <button
+                              class="chapter-link"
+                              class:active-chapter={activeChapter === ch}
+                              onclick={() => { pendingDelete = null; tramaPendingDelete = null; activeNote = ""; cargarCapituloActual(ch); }}
+                            >
+                              {ch}
+                            </button>
+                            {#if pendingDelete === ch}
+                              <button
+                                class="delete-confirm"
+                                title={t("chapters.confirmDeleteTitle")}
+                                onclick={() => eliminarCapituloHandler(ch)}
+                              >{t("chapters.confirmDelete")}</button>
+                            {:else}
+                              <button
+                                class="item-delete"
+                                title={t("chapters.deleteTitle")}
+                                onclick={() => eliminarCapituloHandler(ch)}
+                              ><X size={16} weight="light" color="currentColor" /></button>
+                            {/if}
+                          </li>
+                        {/each}
+                        {#if section.chapters.length === 0}
+                          <li class="trama-empty-hint">{isUnassigned ? t("chapters.empty") : "Sin capítulos"}</li>
+                        {/if}
+                      </ul>
+                    {/if}
+                  </li>
+                {/if}
               {/each}
             </ul>
           {:else}
@@ -2086,6 +2340,9 @@
 
           <button class="btn-add" onclick={() => crearCapituloNuevo()}>
             <Notebook size={16} weight="light" color="currentColor" /> {t("toolbar.newChapter")}
+          </button>
+          <button class="btn-add" onclick={() => handleNuevaTrama()}>
+            <Notebook size={16} weight="light" color="currentColor" /> + {t("tramas.newPrompt")}
           </button>
         </div>
       {/if}
@@ -3179,6 +3436,42 @@
   </div>
 {/if}
 
+<!-- Trama selector dialog (3-option: existing, new, skip) -->
+{#if tramaSelectorOpen}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="modal-overlay"
+    role="dialog"
+    tabindex="-1"
+    aria-label={t("tramas.selectTitle")}
+    onclick={() => resolveTramaSelector(undefined)}
+    onkeydown={(e) => e.key === "Escape" && resolveTramaSelector(undefined)}
+  >
+    <div class="modal-panel trama-selector-panel" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+      <h2>{t("tramas.selectTitle")}</h2>
+      <div class="trama-selector-options">
+        <button class="trama-selector-btn" onclick={handleTramaSelectExisting}>
+          <Notebook size={16} weight="light" color="currentColor" />
+          <span>{t("tramas.selectExisting")}</span>
+        </button>
+        <button class="trama-selector-btn" onclick={handleTramaSelectNew}>
+          <Notebook size={16} weight="light" color="currentColor" />
+          <span>{t("tramas.selectNew")}</span>
+        </button>
+        <button class="trama-selector-btn" onclick={handleTramaSelectSkip}>
+          <Notebook size={16} weight="light" color="currentColor" />
+          <span>{t("tramas.selectSkip")}</span>
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick={() => resolveTramaSelector(undefined)}>
+          {t("common.cancel")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- Toast notification -->
 {#if toast}
   <div class="toast" class:toast-error={toast.type === "error"}>
@@ -3882,6 +4175,186 @@
   @keyframes pulse {
     from { opacity: 1; }
     to   { opacity: 0.6; }
+  }
+
+  /* ── Trama groups ──────────────────────────────────────────── */
+  .trama-group {
+    margin-bottom: 0.25rem;
+    border-radius: 4px;
+    transition: background 120ms;
+  }
+
+  .trama-group.drag-over {
+    background: #eff6ff;
+    outline: 2px dashed #3b82f6;
+    outline-offset: -2px;
+  }
+
+  :global(.dark) .trama-group.drag-over {
+    background: #1e3a5f;
+    outline-color: #60a5fa;
+  }
+
+  .trama-header {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    user-select: none;
+    transition: background 120ms;
+  }
+
+  .trama-header:hover {
+    background: #f1f5f9;
+  }
+
+  :global(.dark) .trama-header {
+    color: #94a3b8;
+  }
+  :global(.dark) .trama-header:hover {
+    background: #1e293b;
+  }
+
+  .trama-header.unassigned {
+    cursor: default;
+    color: #94a3b8;
+  }
+  :global(.dark) .trama-header.unassigned {
+    color: #64748b;
+  }
+
+  .trama-caret {
+    width: 14px;
+    display: flex;
+    align-items: center;
+    color: #94a3b8;
+  }
+
+  .trama-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trama-count {
+    font-size: 0.6875rem;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 8px;
+  }
+
+  :global(.dark) .trama-count {
+    color: #64748b;
+    background: #334155;
+  }
+
+  .trama-delete,
+  .trama-delete-confirm {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 120ms, background 120ms, color 120ms;
+  }
+
+  .trama-header:hover .trama-delete {
+    opacity: 1;
+  }
+
+  .trama-delete:hover {
+    background: #fee2e2;
+    color: #ef4444;
+  }
+
+  :global(.dark) .trama-delete:hover {
+    background: #7f1d1d33;
+    color: #f87171;
+  }
+
+  .trama-delete-confirm {
+    opacity: 1;
+    background: #ef4444;
+    color: white;
+    font-size: 0.625rem;
+    width: auto;
+    padding: 0.0625rem 0.375rem;
+    animation: pulse 0.6s infinite alternate;
+  }
+
+  .trama-chapters {
+    margin-left: 1.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .trama-empty-hint {
+    font-size: 0.6875rem;
+    color: #94a3b8;
+    font-style: italic;
+    padding: 0.125rem 0;
+  }
+
+  :global(.dark) .trama-empty-hint {
+    color: #64748b;
+  }
+
+  /* ── Trama selector dialog ──────────────────────────────────── */
+  .trama-selector-panel {
+    max-width: 380px;
+  }
+
+  .trama-selector-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .trama-selector-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    color: #475569;
+    font-size: 0.875rem;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: background 120ms, border-color 120ms;
+  }
+
+  .trama-selector-btn:hover {
+    background: #f8fafc;
+    border-color: #3b82f6;
+  }
+
+  :global(.dark) .trama-selector-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+  :global(.dark) .trama-selector-btn:hover {
+    background: #334155;
+    border-color: #60a5fa;
   }
 
   /* ── Inline forms (characters, notes, timeline) ────────────── */

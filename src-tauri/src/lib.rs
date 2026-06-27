@@ -221,6 +221,12 @@ struct Metadata {
     /// Auto-save interval in minutes (1, 5, or 10). Default 5.
     #[serde(default = "default_auto_save_interval")]
     auto_save_interval_minutes: u32,
+    /// Tramas (plotlines) — metadata-only groupings of chapters.
+    #[serde(default)]
+    tramas: Vec<Trama>,
+    /// Chapter-to-trama assignments. Maps filename → optional trama_id.
+    #[serde(default)]
+    chapter_tramas: Vec<ChapterTrama>,
 }
 
 fn default_font_family() -> String {
@@ -291,6 +297,21 @@ struct Lugar {
 }
 
 #[allow(non_snake_case)]
+// ── Tramas — plotlines ──────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Trama {
+    id: String,
+    nombre: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ChapterTrama {
+    filename: String,
+    #[serde(default)]
+    trama_id: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct TimelineEvent {
     #[serde(default)]
@@ -474,6 +495,15 @@ This is a literary writing project managed by **Cron-Insta**, a desktop writing 
   - `relatedChapters` (array of strings): Filenames of related chapters (soft reference)
   - `relatedPlaces` (array of strings): IDs of related places (soft reference)
 
+### Trama
+
+- **Storage**: Inline in `.config/metadata.json` under `tramas` array
+- **Fields**:
+  - `id` (string): Unique identifier derived from the trama name (slug + hex suffix)
+  - `nombre` (string): Display name of the trama
+- **Usage**: Metadata-only grouping of chapters into narrative plotlines. Chapters remain flat in `capitulos/` regardless of trama assignment.
+- **Chapter-Trama Assignment**: Stored in `.config/metadata.json` under `chapter_tramas` as `{{filename, trama_id}}`. `trama_id` is `null` for unassigned chapters.
+
 ## Relationships
 
 ```
@@ -481,6 +511,7 @@ TimelineEvent.relatedCharacters ──soft──▶ Character.id
 TimelineEvent.relatedChapters   ──soft──▶ Chapter filename
 TimelineEvent.relatedPlaces     ──soft──▶ Place.id
 Character.relationships[].targetId ──soft──▶ Character.id
+ChapterTrama.trama_id           ──soft──▶ Trama.id
 ```
 
 All references are **soft** (no foreign key enforcement). Deleting a Character, Chapter, or Place:
@@ -488,6 +519,8 @@ All references are **soft** (no foreign key enforcement). Deleting a Character, 
 - Character relationships (`targetId`) are NOT automatically cleaned up
 
 Timeline events linked to a deleted entity are NOT deleted — only the reference is removed.
+
+Deleting a Trama sets all its assigned chapters' `trama_id` to `null` — chapters are never deleted.
 
 ## Project Configuration
 
@@ -500,6 +533,8 @@ Timeline events linked to a deleted entity are NOT deleted — only the referenc
 | `chapters_order` | string[] | Ordered list of chapter filenames |
 | `characters_index` | object[] | Array of `{{ id, file, name }}` |
 | `places_index` | object[] | Array of `{{ id, name }}` |
+| `tramas` | object[] | Array of `{{ id, nombre }}` plotline groupings |
+| `chapter_tramas` | object[] | Array of `{{ filename, trama_id }}` assignments |
 | `font_family` | string | Editor font: `"monospace"`, `"serif"`, or `"sans-serif"` |
 | `push_enabled` | boolean | Whether auto-push to remote is active for this project (default: false) |
 | `consecutive_failures` | number | Consecutive push failure count for the 3-strike auto-disable rule (default: 0) |
@@ -589,6 +624,8 @@ fn crear_proyecto(app: tauri::AppHandle, path: String, nombre: String, font_fami
         consecutive_failures: 0,
         visible_tabs: visible_tabs.unwrap_or_default(),
         auto_save_interval_minutes: auto_save_interval_minutes.unwrap_or_else(default_auto_save_interval),
+        tramas: vec![],
+        chapter_tramas: vec![],
     };
     let metadata_json = serde_json::to_string_pretty(&metadata)
         .map_err(|e| format!("Error al serializar metadata: {}", e))?;
@@ -1125,6 +1162,7 @@ fn crear_capitulo(
     proyecto_path: String,
     filename: String,
     contenido: String,
+    trama_id: Option<String>,
 ) -> Result<String, String> {
     if proyecto_path.trim().is_empty() {
         return Err("La ruta del proyecto no puede estar vacía.".to_string());
@@ -1167,6 +1205,27 @@ fn crear_capitulo(
 
     metadata.chapters_order.push(filename.clone());
     metadata.last_modified = Local::now().to_rfc3339();
+
+    // Register trama assignment if provided
+    if let Some(ref tid) = trama_id {
+        // Validate trama exists
+        if !metadata.tramas.iter().any(|t| &t.id == tid) {
+            return Err(format!("La trama con ID '{}' no existe.", tid));
+        }
+        // Remove existing assignment for this filename (if any)
+        metadata.chapter_tramas.retain(|ct| ct.filename != filename);
+        metadata.chapter_tramas.push(ChapterTrama {
+            filename: filename.clone(),
+            trama_id: Some(tid.clone()),
+        });
+    } else {
+        // Explicitly register as unassigned
+        metadata.chapter_tramas.retain(|ct| ct.filename != filename);
+        metadata.chapter_tramas.push(ChapterTrama {
+            filename: filename.clone(),
+            trama_id: None,
+        });
+    }
 
     let updated_json = serde_json::to_string_pretty(&metadata)
         .map_err(|e| format!("Error al serializar metadata.json: {}", e))?;
@@ -1216,6 +1275,7 @@ fn eliminar_capitulo(proyecto_path: String, filename: String) -> Result<String, 
         .map_err(|e| format!("Error al parsear metadata.json: {}", e))?;
 
     metadata.chapters_order.retain(|ch| ch != &filename);
+    metadata.chapter_tramas.retain(|ct| ct.filename != filename);
     metadata.last_modified = Local::now().to_rfc3339();
 
     let updated_json = serde_json::to_string_pretty(&metadata)
@@ -2175,6 +2235,222 @@ fn eliminar_evento_timeline(proyecto_path: String, id: String) -> Result<String,
         .map_err(|e| format!("Error al escribir la línea de tiempo: {}", e))?;
 
     Ok(format!("Evento '{}' eliminado de la línea de tiempo.", id))
+}
+
+// ---------------------------------------------------------------------------
+// Tramas — plotlines
+// ---------------------------------------------------------------------------
+
+/// Generate a unique trama ID from a name.
+///
+/// Slugifies the name (lowercase, hyphens, strip non-alnum) and appends an
+/// 8-char hex suffix derived from the current timestamp for uniqueness.
+fn slugify_trama_id(nombre: &str) -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    // Strip accents by decomposing characters and removing combining marks
+    let decomposed: String = nombre
+        .chars()
+        .flat_map(|c| {
+            let mut buf = [0u8; 4];
+            let _s = c.encode_utf8(&mut buf);
+            // Check if this is a base letter + combining accent by
+            // looking at the decomposition of common accented chars
+            match c {
+                'á' | 'à' | 'ä' | 'â' | 'ã' | 'å' => vec!['a'],
+                'é' | 'è' | 'ë' | 'ê' => vec!['e'],
+                'í' | 'ì' | 'ï' | 'î' => vec!['i'],
+                'ó' | 'ò' | 'ö' | 'ô' | 'õ' => vec!['o'],
+                'ú' | 'ù' | 'ü' | 'û' => vec!['u'],
+                'ñ' => vec!['n'],
+                'ç' => vec!['c'],
+                'ý' | 'ÿ' => vec!['y'],
+                _ if c.is_alphabetic() && c as u32 > 127 => {
+                    // For unknown non-ASCII alphabetic chars, try NFKD decomposition
+                    // using a simple approach: keep only ASCII letters
+                    let lower = c.to_lowercase().to_string();
+                    lower.chars().filter(|ch| ch.is_ascii_alphabetic()).collect()
+                }
+                _ => vec![c],
+            }
+        })
+        .map(|c| c.to_lowercase().next().unwrap_or(c))
+        .collect();
+    let base = decomposed
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+        .collect::<String>();
+    let base = base
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    format!("{}-{:08x}", base, nanos)
+}
+
+/// Create a new trama and persist it to metadata.json.
+///
+/// Rejects duplicate names. Slugifies the name into a unique ID with a
+/// random 8-char hex suffix and appends to `metadata.tramas`.
+#[tauri::command]
+fn crear_trama(path: String, nombre: String) -> Result<Trama, String> {
+    if path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if nombre.trim().is_empty() {
+        return Err("El nombre de la trama no puede estar vacío.".to_string());
+    }
+
+    let proyecto_path = Path::new(&path);
+    let metadata_path = proyecto_path.join(".config").join("metadata.json");
+
+    if !metadata_path.exists() {
+        return Err(format!(
+            "Archivo de metadatos no encontrado: {}",
+            metadata_path.display()
+        ));
+    }
+
+    let metadata_str = std::fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Error al leer metadata.json: {}", e))?;
+
+    let mut metadata: Metadata = serde_json::from_str(&metadata_str)
+        .map_err(|e| format!("Error al parsear metadata.json: {}", e))?;
+
+    // Reject duplicate names
+    let nombre_trim = nombre.trim();
+    if metadata.tramas.iter().any(|t| t.nombre == nombre_trim) {
+        return Err(format!("Ya existe una trama con el nombre '{}'.", nombre_trim));
+    }
+
+    let id = slugify_trama_id(nombre_trim);
+    let trama = Trama {
+        id,
+        nombre: nombre_trim.to_string(),
+    };
+
+    metadata.tramas.push(trama.clone());
+    metadata.last_modified = Local::now().to_rfc3339();
+
+    let updated_json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| format!("Error al serializar metadata.json: {}", e))?;
+
+    std::fs::write(&metadata_path, updated_json)
+        .map_err(|e| format!("Error al escribir metadata.json: {}", e))?;
+
+    Ok(trama)
+}
+
+/// Delete a trama by ID. Chapters assigned to it become unassigned.
+///
+/// Removes the trama from `metadata.tramas` and sets all matching
+/// `chapter_tramas` entries to `trama_id: null`. No chapter files
+/// are ever deleted.
+#[tauri::command]
+fn eliminar_trama(path: String, id: String) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if id.trim().is_empty() {
+        return Err("El ID de la trama no puede estar vacío.".to_string());
+    }
+
+    let proyecto_path = Path::new(&path);
+    let metadata_path = proyecto_path.join(".config").join("metadata.json");
+
+    if !metadata_path.exists() {
+        return Err(format!(
+            "Archivo de metadatos no encontrado: {}",
+            metadata_path.display()
+        ));
+    }
+
+    let metadata_str = std::fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Error al leer metadata.json: {}", e))?;
+
+    let mut metadata: Metadata = serde_json::from_str(&metadata_str)
+        .map_err(|e| format!("Error al parsear metadata.json: {}", e))?;
+
+    // Reject nonexistent trama
+    if !metadata.tramas.iter().any(|t| t.id == id) {
+        return Err(format!("No existe una trama con el ID '{}'.", id));
+    }
+
+    metadata.tramas.retain(|t| t.id != id);
+
+    // Unassign all chapters that belonged to this trama
+    for ct in &mut metadata.chapter_tramas {
+        if ct.trama_id.as_deref() == Some(&id) {
+            ct.trama_id = None;
+        }
+    }
+
+    metadata.last_modified = Local::now().to_rfc3339();
+
+    let updated_json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| format!("Error al serializar metadata.json: {}", e))?;
+
+    std::fs::write(&metadata_path, updated_json)
+        .map_err(|e| format!("Error al escribir metadata.json: {}", e))?;
+
+    Ok(())
+}
+
+/// Assign a chapter to a trama (or unassign it when `trama_id` is None).
+///
+/// Upserts the `chapter_tramas` entry. Validates that the trama exists when
+/// `trama_id` is `Some`. `chapters_order` is never modified.
+#[tauri::command]
+fn asignar_capitulo_trama(path: String, filename: String, trama_id: Option<String>) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("La ruta del proyecto no puede estar vacía.".to_string());
+    }
+    if filename.trim().is_empty() {
+        return Err("El nombre del archivo no puede estar vacío.".to_string());
+    }
+
+    let proyecto_path = Path::new(&path);
+    let metadata_path = proyecto_path.join(".config").join("metadata.json");
+
+    if !metadata_path.exists() {
+        return Err(format!(
+            "Archivo de metadatos no encontrado: {}",
+            metadata_path.display()
+        ));
+    }
+
+    let metadata_str = std::fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Error al leer metadata.json: {}", e))?;
+
+    let mut metadata: Metadata = serde_json::from_str(&metadata_str)
+        .map_err(|e| format!("Error al parsear metadata.json: {}", e))?;
+
+    // Validate trama exists when assigning
+    if let Some(ref tid) = trama_id {
+        if !metadata.tramas.iter().any(|t| &t.id == tid) {
+            return Err(format!("No existe una trama con el ID '{}'.", tid));
+        }
+    }
+
+    // Upsert: remove existing entry, then push the new one
+    metadata.chapter_tramas.retain(|ct| ct.filename != filename);
+    metadata.chapter_tramas.push(ChapterTrama {
+        filename: filename.clone(),
+        trama_id,
+    });
+
+    metadata.last_modified = Local::now().to_rfc3339();
+
+    let updated_json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| format!("Error al serializar metadata.json: {}", e))?;
+
+    std::fs::write(&metadata_path, updated_json)
+        .map_err(|e| format!("Error al escribir metadata.json: {}", e))?;
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -3654,6 +3930,9 @@ pub fn run() {
             actualizar_evento_timeline,
             reordenar_timeline,
             eliminar_evento_timeline,
+            crear_trama,
+            eliminar_trama,
+            asignar_capitulo_trama,
             listar_lugares,
             crear_lugar,
             cargar_lugar,
@@ -3794,6 +4073,8 @@ mod tests {
             consecutive_failures: 0,
             visible_tabs: VisibleTabs::default(),
             auto_save_interval_minutes: default_auto_save_interval(),
+            tramas: vec![],
+            chapter_tramas: vec![],
         };
         let metadata_json = serde_json::to_string_pretty(&metadata)
             .map_err(|e| format!("Error al serializar metadata: {}", e))?;
@@ -4389,6 +4670,7 @@ mod tests {
             path.clone(),
             "0002_capitulo_1.md".to_string(),
             contenido.to_string(),
+            None,
         );
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
@@ -4433,6 +4715,7 @@ mod tests {
             path.clone(),
             "0001_prologo.md".to_string(),
             "Contenido duplicado".to_string(),
+            None,
         );
         assert!(result.is_err(), "Expected Err for duplicate chapter");
         let err = result.unwrap_err();
@@ -4471,6 +4754,7 @@ mod tests {
             path.clone(),
             "unicode_chapter.md".to_string(),
             contenido.to_string(),
+            None,
         );
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
@@ -5055,6 +5339,7 @@ mod tests {
             path.clone(),
             "0001_prologo.md".to_string(),
             "# Prólogo\n\n".to_string(),
+            None,
         );
 
         // Verify chapter exists
@@ -5113,6 +5398,7 @@ mod tests {
             path.clone(),
             "cap1.md".to_string(),
             "# Cap 1\n\n".to_string(),
+            None,
         );
 
         // Add a timeline event referencing the chapter
@@ -5891,6 +6177,7 @@ mod tests {
             path.clone(),
             "cap1.md".to_string(),
             "# Capítulo 1\n\n".to_string(),
+            None,
         );
 
         // Update font
@@ -6561,6 +6848,304 @@ mod tests {
         // Should NOT create stats.json when there's no active session
         let stats_path = dir.path().join(".config").join("stats.json");
         assert!(!stats_path.exists(), "stats.json should not be created for inactive session");
+    }
+
+    // ========================================================================
+    // tramas — plotlines tests
+    // ========================================================================
+
+    #[test]
+    fn test_crear_trama_generates_unique_id() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let result = crear_trama(path.clone(), "El Viaje del Héroe".to_string());
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        let trama = result.unwrap();
+        assert_eq!(trama.nombre, "El Viaje del Héroe");
+        assert!(!trama.id.is_empty(), "ID should not be empty");
+        // ID should be slugified: starts with "el-viaje-del-heroe-"
+        assert!(
+            trama.id.starts_with("el-viaje-del-heroe-"),
+            "ID should start with slugified name, got: {}",
+            trama.id
+        );
+        // Should end with 8-char hex suffix
+        let suffix = trama.id.rsplit('-').next().unwrap();
+        assert_eq!(suffix.len(), 8, "Hex suffix should be 8 chars, got: {}", suffix);
+        assert!(
+            suffix.chars().all(|c| c.is_ascii_hexdigit()),
+            "Suffix should be all hex digits, got: {}",
+            suffix
+        );
+
+        // Verify it was persisted
+        let metadata_path = dir.path().join(".config").join("metadata.json");
+        let raw = std::fs::read_to_string(&metadata_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.tramas.len(), 1);
+        assert_eq!(meta.tramas[0].nombre, "El Viaje del Héroe");
+    }
+
+    #[test]
+    fn test_crear_trama_rejects_duplicate_name() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let _ = crear_trama(path.clone(), "Principal".to_string());
+        let result = crear_trama(path.clone(), "Principal".to_string());
+        assert!(result.is_err(), "Expected Err for duplicate name");
+        let err = result.unwrap_err().to_lowercase();
+        assert!(err.contains("ya existe"), "Should mention duplicate: {}", err);
+
+        // Only one trama persisted
+        let metadata_path = dir.path().join(".config").join("metadata.json");
+        let raw = std::fs::read_to_string(&metadata_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.tramas.len(), 1);
+    }
+
+    #[test]
+    fn test_eliminar_trama_unassigns_chapters() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        // Create trama and two chapters assigned to it
+        let trama = crear_trama(path.clone(), "Trama A".to_string()).unwrap();
+        let trama_id = trama.id.clone();
+
+        // Write chapter files manually
+        std::fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+        std::fs::write(dir.path().join("capitulos").join("cap1.md"), "# Cap 1\n\n").unwrap();
+        std::fs::write(dir.path().join("capitulos").join("cap2.md"), "# Cap 2\n\n").unwrap();
+
+        // Assign chapters to trama via metadata manipulation
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let mut meta: Metadata = serde_json::from_str(&raw).unwrap();
+        meta.chapters_order = vec!["cap1.md".to_string(), "cap2.md".to_string()];
+        meta.chapter_tramas = vec![
+            ChapterTrama { filename: "cap1.md".to_string(), trama_id: Some(trama_id.clone()) },
+            ChapterTrama { filename: "cap2.md".to_string(), trama_id: Some(trama_id.clone()) },
+        ];
+        std::fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap()).unwrap();
+
+        // Delete the trama
+        let result = eliminar_trama(path.clone(), trama_id);
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        // Verify trama removed
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert!(meta.tramas.is_empty(), "tramas should be empty");
+        assert_eq!(meta.chapter_tramas.len(), 2);
+        assert!(meta.chapter_tramas.iter().all(|ct| ct.trama_id.is_none()),
+            "All chapters should be unassigned");
+        // Chapters must still exist in order
+        assert_eq!(meta.chapters_order.len(), 2);
+    }
+
+    #[test]
+    fn test_eliminar_trama_nonexistent() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let result = eliminar_trama(path, "ghost".to_string());
+        assert!(result.is_err(), "Expected Err for nonexistent trama");
+        let err = result.unwrap_err().to_lowercase();
+        assert!(err.contains("no existe"), "Should mention nonexistent: {}", err);
+    }
+
+    #[test]
+    fn test_asignar_capitulo_trama_upsert() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        // Create two tramas
+        let trama_a = crear_trama(path.clone(), "A".to_string()).unwrap();
+        let trama_b = crear_trama(path.clone(), "B".to_string()).unwrap();
+
+        // Write chapter file
+        std::fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+        std::fs::write(dir.path().join("capitulos").join("cap1.md"), "# Cap 1\n\n").unwrap();
+
+        // Add chapter to metadata
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let mut meta: Metadata = serde_json::from_str(&raw).unwrap();
+        meta.chapters_order.push("cap1.md".to_string());
+        std::fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap()).unwrap();
+
+        // Assign to trama A
+        let result = asignar_capitulo_trama(
+            path.clone(), "cap1.md".to_string(), Some(trama_a.id.clone()),
+        );
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.chapter_tramas.len(), 1);
+        assert_eq!(meta.chapter_tramas[0].trama_id.as_deref(), Some(trama_a.id.as_str()));
+
+        // Re-assign to trama B
+        let result = asignar_capitulo_trama(
+            path.clone(), "cap1.md".to_string(), Some(trama_b.id.clone()),
+        );
+        assert!(result.is_ok(), "Expected Ok for reassignment, got {:?}", result);
+
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.chapter_tramas.len(), 1, "Should still have one entry");
+        assert_eq!(meta.chapter_tramas[0].trama_id.as_deref(), Some(trama_b.id.as_str()));
+
+        // Unassign
+        let result = asignar_capitulo_trama(
+            path.clone(), "cap1.md".to_string(), None,
+        );
+        assert!(result.is_ok(), "Expected Ok for unassign, got {:?}", result);
+
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.chapter_tramas[0].trama_id, None, "Should be unassigned");
+    }
+
+    #[test]
+    fn test_asignar_capitulo_trama_rejects_nonexistent_trama() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        std::fs::create_dir_all(dir.path().join("capitulos")).unwrap();
+        std::fs::write(dir.path().join("capitulos").join("cap1.md"), "# Cap 1\n\n").unwrap();
+
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let mut meta: Metadata = serde_json::from_str(&raw).unwrap();
+        meta.chapters_order.push("cap1.md".to_string());
+        std::fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap()).unwrap();
+
+        let result = asignar_capitulo_trama(
+            path, "cap1.md".to_string(), Some("ghost".to_string()),
+        );
+        assert!(result.is_err(), "Expected Err for nonexistent trama");
+        let err = result.unwrap_err().to_lowercase();
+        assert!(err.contains("no existe"), "Should mention nonexistent: {}", err);
+    }
+
+    #[test]
+    fn test_metadata_backward_compat_no_tramas_fields() {
+        // Old metadata.json without tramas or chapter_tramas should deserialize
+        // with both fields defaulting to empty vectors.
+        let old_json = r#"{
+            "project_name": "Old Project",
+            "last_modified": "2024-01-01T00:00:00+00:00",
+            "chapters_order": ["cap1.md"],
+            "characters_index": [],
+            "places_index": [],
+            "font_family": "monospace",
+            "push_enabled": false,
+            "consecutive_failures": 0,
+            "visible_tabs": {"chapters":true,"characters":true,"places":true,"timeline":true,"notes":true},
+            "auto_save_interval_minutes": 5
+        }"#;
+
+        let meta: Metadata = serde_json::from_str(old_json).expect("Should deserialize old JSON");
+        assert!(meta.tramas.is_empty(), "tramas should default to empty");
+        assert!(meta.chapter_tramas.is_empty(), "chapter_tramas should default to empty");
+        assert_eq!(meta.project_name, "Old Project");
+        assert_eq!(meta.chapters_order, vec!["cap1.md"]);
+    }
+
+    #[test]
+    fn test_crear_capitulo_with_trama_id() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+        let trama = crear_trama(path.clone(), "Trama A".to_string()).unwrap();
+
+        let result = crear_capitulo(
+            path.clone(),
+            "cap1.md".to_string(),
+            "# Cap 1\n\n".to_string(),
+            Some(trama.id.clone()),
+        );
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert!(meta.chapters_order.contains(&"cap1.md".to_string()));
+        assert_eq!(meta.chapter_tramas.len(), 1);
+        assert_eq!(meta.chapter_tramas[0].filename, "cap1.md");
+        assert_eq!(meta.chapter_tramas[0].trama_id.as_deref(), Some(trama.id.as_str()));
+    }
+
+    #[test]
+    fn test_crear_capitulo_without_trama_id() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        let result = crear_capitulo(
+            path.clone(),
+            "cap1.md".to_string(),
+            "# Cap 1\n\n".to_string(),
+            None,
+        );
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert_eq!(meta.chapter_tramas.len(), 1);
+        assert_eq!(meta.chapter_tramas[0].filename, "cap1.md");
+        assert!(meta.chapter_tramas[0].trama_id.is_none(), "Should be unassigned");
+    }
+
+    #[test]
+    fn test_eliminar_capitulo_cleans_chapter_tramas() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+        let path = dir.path().to_str().unwrap().to_string();
+
+        let _ = create_project_for_test(path.clone(), "Test".to_string(), None);
+
+        // Create a trama and a chapter assigned to it
+        let trama = crear_trama(path.clone(), "A".to_string()).unwrap();
+        let _ = crear_capitulo(
+            path.clone(),
+            "cap1.md".to_string(),
+            "# Cap 1\n\n".to_string(),
+            Some(trama.id),
+        );
+
+        // Verify assignment exists
+        let meta_path = dir.path().join(".config").join("metadata.json");
+        {
+            let raw = std::fs::read_to_string(&meta_path).unwrap();
+            let meta: Metadata = serde_json::from_str(&raw).unwrap();
+            assert_eq!(meta.chapter_tramas.len(), 1);
+        }
+
+        // Delete the chapter
+        let result = eliminar_capitulo(path.clone(), "cap1.md".to_string());
+        assert!(result.is_ok(), "Expected Ok for delete, got {:?}", result);
+
+        let raw = std::fs::read_to_string(&meta_path).unwrap();
+        let meta: Metadata = serde_json::from_str(&raw).unwrap();
+        assert!(meta.chapter_tramas.is_empty(), "chapter_tramas should be empty after chapter deletion");
     }
 
     // ========================================================================

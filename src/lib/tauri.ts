@@ -103,8 +103,9 @@ export async function crearCapitulo(
   proyectoPath: string,
   filename: string,
   contenido: string,
+  tramaId?: string | null,
 ): Promise<string> {
-  return invoke("crear_capitulo", { proyectoPath, filename, contenido });
+  return invoke("crear_capitulo", { proyectoPath, filename, contenido, tramaId: tramaId ?? null });
 }
 
 export async function eliminarCapitulo(
@@ -112,6 +113,40 @@ export async function eliminarCapitulo(
   filename: string,
 ): Promise<string> {
   return invoke("eliminar_capitulo", { proyectoPath, filename });
+}
+
+// ── Tramas — plotlines ────────────────────────────────────────
+
+export interface Trama {
+  id: string;
+  nombre: string;
+}
+
+export interface ChapterTrama {
+  filename: string;
+  trama_id: string | null;
+}
+
+export async function crearTrama(
+  path: string,
+  nombre: string,
+): Promise<Trama> {
+  return invoke("crear_trama", { path, nombre });
+}
+
+export async function eliminarTrama(
+  path: string,
+  id: string,
+): Promise<void> {
+  return invoke("eliminar_trama", { path, id });
+}
+
+export async function asignarCapituloTrama(
+  path: string,
+  filename: string,
+  tramaId: string | null,
+): Promise<void> {
+  return invoke("asignar_capitulo_trama", { path, filename, tramaId });
 }
 
 // ── Characters ────────────────────────────────────────────────

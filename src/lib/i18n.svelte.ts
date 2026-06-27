@@ -142,6 +142,21 @@ const translations: Record<Lang, Record<string, string>> = {
     "chapters.deleteError": "Error al eliminar capítulo:",
     "chapters.createError": "Error al crear capítulo:",
 
+    // ── Tramas ─────────────────────────────────────────────
+    "tramas.unassigned": "Sin trama",
+    "tramas.newPrompt": "Nombre de la trama:",
+    "tramas.deleteConfirm": "¿Eliminar esta trama?",
+    "tramas.createError": "Error al crear trama:",
+    "tramas.deleteError": "Error al eliminar trama:",
+    "tramas.selectTitle": "¿A qué trama pertenece?",
+    "tramas.selectExisting": "Trama existente",
+    "tramas.selectNew": "Crear nueva trama",
+    "tramas.selectSkip": "Sin trama",
+    "tramas.selectNewPrompt": "Nombre de la nueva trama:",
+    "tramas.moveConfirm": "¿Mover \"{chapter}\" a la trama \"{trama}\"?",
+    "tramas.moveToUnassigned": "¿Quitar \"{chapter}\" de la trama?",
+    "tramas.assignError": "Error al asignar capítulo:",
+
     // ── Characters ─────────────────────────────────────────
     "characters.empty": "Sin personajes aún.",
     "characters.new": "+ Nuevo personaje",
@@ -545,6 +560,21 @@ const translations: Record<Lang, Record<string, string>> = {
     "chapters.untitled": "Untitled",
     "chapters.deleteError": "Error deleting chapter:",
     "chapters.createError": "Error creating chapter:",
+
+    // ── Tramas ─────────────────────────────────────────────
+    "tramas.unassigned": "Unassigned",
+    "tramas.newPrompt": "Plotline name:",
+    "tramas.deleteConfirm": "Delete this plotline?",
+    "tramas.createError": "Error creating plotline:",
+    "tramas.deleteError": "Error deleting plotline:",
+    "tramas.selectTitle": "Which plotline does it belong to?",
+    "tramas.selectExisting": "Existing plotline",
+    "tramas.selectNew": "Create new plotline",
+    "tramas.selectSkip": "Skip (unassigned)",
+    "tramas.selectNewPrompt": "New plotline name:",
+    "tramas.moveConfirm": "Move \"{chapter}\" to plotline \"{trama}\"?",
+    "tramas.moveToUnassigned": "Remove \"{chapter}\" from its plotline?",
+    "tramas.assignError": "Error assigning chapter:",
 
     // ── Characters ─────────────────────────────────────────
     "characters.empty": "No characters yet.",

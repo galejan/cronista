@@ -575,6 +575,9 @@
     relationships: Array<{targetName: string; type: string; notes: string}>;
   } | null>(null);
 
+  let noteDocked = $state<{ id: string; title: string; content: string } | null>(null);
+  let placeDocked = $state<{ id: string; name: string; description: string; notes: string } | null>(null);
+
   // ── Notes state ─────────────────────────────────────────────
   let notas = $state<{ id: string; title: string }[]>([]);
   let activeNote = $state("");
@@ -2164,7 +2167,7 @@
     }
 
     // Ctrl+Enter — dock/undock selected character to editor panel
-    if (e.ctrlKey && !e.shiftKey && e.key === "Enter") {
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "Enter") {
       if (characterDocked) {
         characterDocked = null;
         return;
@@ -2179,6 +2182,33 @@
           traumas: personajeEditando.traumas,
           relationships: personajeEditando.relationships || [],
         };
+        return;
+      }
+    }
+
+    // Ctrl+Shift+Enter — dock/undock active note
+    if (e.ctrlKey && e.shiftKey && !e.altKey && e.key === "Enter") {
+      if (noteDocked) { noteDocked = null; return; }
+      if (activeNote) {
+        e.preventDefault();
+        cargarNota(projectPath, activeNote).then(raw => {
+          const nota = JSON.parse(raw);
+          noteDocked = { id: activeNote, title: nota.title || activeNote, content: nota.content || "" };
+        }).catch(() => {});
+        return;
+      }
+    }
+
+    // Ctrl+Alt+Enter — dock/undock selected place
+    if (e.ctrlKey && !e.shiftKey && e.altKey && e.key === "Enter") {
+      if (placeDocked) { placeDocked = null; return; }
+      if (lugarExpandido) {
+        e.preventDefault();
+        const placeId = lugarExpandido;
+        cargarLugar(projectPath, placeId).then(raw => {
+          const lugar = JSON.parse(raw);
+          placeDocked = { id: placeId, name: lugar.name || placeId, description: lugar.description || "", notes: lugar.notes || "" };
+        }).catch(() => {});
         return;
       }
     }
@@ -3306,9 +3336,48 @@
       </div>
     </div>
   </div>
-{/if}
+        {/if}
 
-<!-- Shortcuts panel -->
+        {#if noteDocked}
+          <div class="character-dock" transition:fly={{ x: 300, duration: 200 }}>
+            <div class="character-dock-header">
+              <h3><PushPin size={16} weight="light" color="currentColor" aria-hidden="true" /> {noteDocked.title}</h3>
+              <button class="character-dock-close" onclick={() => noteDocked = null}
+                title={t("characters.undock")}><XCircle size={16} weight="light" color="currentColor" /></button>
+            </div>
+            <div class="character-dock-body">
+              <div class="char-dock-field">
+                {@html noteDocked.content}
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        {#if placeDocked}
+          <div class="character-dock" transition:fly={{ x: 300, duration: 200 }}>
+            <div class="character-dock-header">
+              <h3><PushPin size={16} weight="light" color="currentColor" aria-hidden="true" /> {placeDocked.name}</h3>
+              <button class="character-dock-close" onclick={() => placeDocked = null}
+                title={t("characters.undock")}><XCircle size={16} weight="light" color="currentColor" /></button>
+            </div>
+            <div class="character-dock-body">
+              {#if placeDocked.description}
+                <div class="char-dock-field">
+                  <span class="char-dock-label">{t("places.description")}</span>
+                  <p>{placeDocked.description}</p>
+                </div>
+              {/if}
+              {#if placeDocked.notes}
+                <div class="char-dock-field">
+                  <span class="char-dock-label">{t("places.notes")}</span>
+                  <p>{placeDocked.notes}</p>
+                </div>
+              {/if}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Shortcuts panel -->
 {#if shortcutsOpen}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -3338,6 +3407,8 @@
             <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>{t("help.shortcuts.newProject")}</td></tr>
             <tr><td><kbd>Ctrl+T</kbd></td><td>{t("help.shortcuts.cycleTabs")}</td></tr>
             <tr><td><kbd>Ctrl+Enter</kbd></td><td>{t("help.shortcuts.dockCharacter")}</td></tr>
+            <tr><td><kbd>Ctrl+Shift+Enter</kbd></td><td>Pinear nota activa</td></tr>
+            <tr><td><kbd>Ctrl+Alt+Enter</kbd></td><td>Pinear lugar seleccionado</td></tr>
             <tr><td><kbd>Ctrl+I</kbd></td><td>{t("help.shortcuts.importProject")}</td></tr>
             <tr><td><kbd>Ctrl+↑</kbd> / <kbd>Ctrl+↓</kbd></td><td>{t("help.shortcuts.applyHeading")}</td></tr>
             <tr><td><kbd>Ctrl+D</kbd></td><td>{t("help.shortcuts.dialogDash")}</td></tr>

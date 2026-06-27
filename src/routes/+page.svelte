@@ -4216,15 +4216,10 @@
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     padding: 0 1rem;
-    border-bottom: 1px solid #e2e8f0;
-    background: #f8fafc;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-app, #f8fafc);
     flex-shrink: 0;
     height: var(--header-height, 2.5rem);
-  }
-
-  :global(.dark) .editor-toolbar {
-    background: #0f172a;
-    border-bottom-color: #334155;
   }
 
   .project-label {
@@ -4326,7 +4321,7 @@
     gap: 1rem;
     padding: 0.375rem 1rem;
     border-top: 1px solid transparent;
-    background: #f8fafc;
+    background: var(--bg-editor, #f8fafc);
     max-height: 0;
     overflow: hidden;
     opacity: 0;
@@ -4335,14 +4330,7 @@
   .chapter-nav-footer.visible {
     max-height: 2.5rem;
     opacity: 1;
-    border-top-color: #e2e8f0;
-  }
-
-  :global(.dark) .chapter-nav-footer {
-    background: #0f172a;
-  }
-  :global(.dark) .chapter-nav-footer.visible {
-    border-top-color: #334155;
+    border-top-color: var(--border-color, #e2e8f0);
   }
 
   .nav-btn {
@@ -5719,14 +5707,9 @@
 
   /* ── Sidebar footer (utility buttons + git, collapsible) ────── */
   .sidebar-footer {
-    border-top: 1px solid #e2e8f0;
-    background: #f8fafc;
+    border-top: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-sidebar, #f8fafc);
     flex-shrink: 0;
-  }
-
-  :global(.dark) .sidebar-footer {
-    border-top-color: #334155;
-    background: #0f172a;
   }
 
   .footer-toggle {

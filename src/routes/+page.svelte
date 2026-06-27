@@ -3478,9 +3478,13 @@
                 title={t("characters.undock")}><XCircle size={16} weight="light" color="currentColor" /></button>
             </div>
             <div class="character-dock-body">
-              <img src={mediaUrl(mediaDocked)} alt={mediaDocked}
-                style="max-width:100%;max-height:60vh;min-height:120px;object-fit:contain;display:block;cursor:pointer;"
-                onclick={() => mediaViewer = mediaDocked} />
+              <button
+                style="border:none;background:transparent;padding:0;cursor:pointer;width:100%;"
+                onclick={() => mediaViewer = mediaDocked}
+              >
+                <img src={mediaUrl(mediaDocked)} alt={mediaDocked}
+                  style="max-width:100%;max-height:60vh;min-height:120px;object-fit:contain;display:block;" />
+              </button>
               <p style="font-size:0.6875rem;color:#64748b;margin-top:0.25rem;text-align:center;">{mediaDocked}</p>
             </div>
           </div>

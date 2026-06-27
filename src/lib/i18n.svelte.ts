@@ -298,7 +298,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.toggleHelp": "Mostrar / ocultar esta ayuda",
     "help.shortcuts.cycleTabs": "Navegar 5 pestañas",
     "help.shortcuts.fullSidebar": "Panel lateral a pantalla completa (referencia)",
-    "help.shortcuts.dockCharacter": "Anclar/desanclar ficha del personaje",
+    "help.shortcuts.dockCharacter": "Pinear elemento activo (personaje, nota, lugar o imagen)",
     "help.shortcuts.importProject": "Importar proyecto desde ZIP",
 
     // ── Dialogs (prompts and confirmations) ────────────────
@@ -730,7 +730,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "help.shortcuts.toggleHelp": "Show / hide this help",
     "help.shortcuts.cycleTabs": "Cycle 5 tabs",
     "help.shortcuts.fullSidebar": "Full-width sidebar (reference mode)",
-    "help.shortcuts.dockCharacter": "Dock/undock character card",
+    "help.shortcuts.dockCharacter": "Dock/undock active element (character, note, place or image)",
     "help.shortcuts.importProject": "Import project from ZIP",
 
     // ── Dialogs (prompts and confirmations) ────────────────

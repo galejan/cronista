@@ -103,13 +103,13 @@
                 class="lang-btn"
                 class:active={lang.current === "es"}
                 onclick={() => selectLang("es")}
-                title="Español"
+                title={lang.current === "es" ? "Español" : "Spanish"}
               >ES</button>
               <button
                 class="lang-btn"
                 class:active={lang.current === "en"}
                 onclick={() => selectLang("en")}
-                title="English"
+                title={lang.current === "es" ? "Inglés" : "English"}
               >EN</button>
             </div>
           </div>

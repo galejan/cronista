@@ -2486,7 +2486,7 @@
                           </li>
                         {/each}
                         {#if section.chapters.length === 0}
-                          <li class="trama-empty-hint">{isUnassigned ? t("chapters.empty") : "Sin capítulos"}</li>
+                          <li class="trama-empty-hint">{t("chapters.empty")}</li>
                         {/if}
                       </ul>
                     {/if}
@@ -3459,7 +3459,7 @@
             <tr><td><kbd>Ctrl+O</kbd></td><td>{t("help.shortcuts.openProject")}</td></tr>
             <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>{t("help.shortcuts.newProject")}</td></tr>
             <tr><td><kbd>Ctrl+T</kbd></td><td>{t("help.shortcuts.cycleTabs")}</td></tr>
-            <tr><td><kbd>Ctrl+Enter</kbd></td><td>Pinear elemento activo (personaje, nota o lugar)</td></tr>
+            <tr><td><kbd>Ctrl+Enter</kbd></td><td>{t("help.shortcuts.dockCharacter")}</td></tr>
             <tr><td><kbd>Ctrl+I</kbd></td><td>{t("help.shortcuts.importProject")}</td></tr>
             <tr><td><kbd>Ctrl+↑</kbd> / <kbd>Ctrl+↓</kbd></td><td>{t("help.shortcuts.applyHeading")}</td></tr>
             <tr><td><kbd>Ctrl+D</kbd></td><td>{t("help.shortcuts.dialogDash")}</td></tr>

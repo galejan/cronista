@@ -4,8 +4,10 @@ export async function crearProyecto(
   path: string,
   nombre: string,
   fontFamily?: string,
+  visibleTabs?: Record<string, boolean>,
+  autoSaveIntervalMinutes?: number,
 ): Promise<string> {
-  return invoke("crear_proyecto", { path, nombre, fontFamily });
+  return invoke("crear_proyecto", { path, nombre, fontFamily, visibleTabs, autoSaveIntervalMinutes });
 }
 
 /** Set the project folder icon (best-effort, gvfs). Call after crearProyecto. */
@@ -268,6 +270,14 @@ export async function actualizarFuenteProyecto(
   fontFamily: string,
 ): Promise<string> {
   return invoke("actualizar_fuente_proyecto", { projectPath, fontFamily });
+}
+
+/** Merge partial project configuration into metadata.json. Returns full merged JSON. */
+export async function actualizarConfigProyecto(
+  projectPath: string,
+  config: Record<string, unknown>,
+): Promise<string> {
+  return invoke("actualizar_config_proyecto", { projectPath, config });
 }
 
 // ── Git Identity & Remote ─────────────────────────────────────

@@ -42,7 +42,6 @@ const translations: Record<Lang, Record<string, string>> = {
     "setup.newProject": "+ Nuevo proyecto",
     "setup.openProject": "Abrir proyecto",
     "setup.reopening": "Reabriendo último proyecto…",
-    "setup.closeApp": "Cerrar aplicación",
 
     // ── Toolbar ────────────────────────────────────────────
     "toolbar.newChapter": "+ Nuevo capítulo",
@@ -476,7 +475,6 @@ const translations: Record<Lang, Record<string, string>> = {
     "setup.newProject": "+ New Project",
     "setup.openProject": "Open Project",
     "setup.reopening": "Reopening last project…",
-    "setup.closeApp": "Close application",
 
     // ── Toolbar ────────────────────────────────────────────
     "toolbar.newChapter": "+ New Chapter",

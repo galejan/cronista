@@ -96,7 +96,6 @@ pub fn run() {
                     let active = state.active_project.lock().unwrap();
                     active.clone()
                 };
-                eprintln!("[rust:close] project_path = {:?}", project_path);
 
                 if let Some(ref path) = project_path {
                     // Guard against re-entry
@@ -121,9 +120,8 @@ pub fn run() {
                         let _ = window_clone.destroy();
                     });
                 } else {
-                    // No project — same mechanism: prevent, then destroy
+                    // No project — prevent close, then destroy (same mechanism as project case)
                     api.prevent_close();
-                    eprintln!("[rust:close] No project → destroying window");
                     let window_clone = window.clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;

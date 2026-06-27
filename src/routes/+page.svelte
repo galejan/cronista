@@ -489,40 +489,24 @@
   let closing = $state(false);
   let closeStep = $state("");
 
-  // Register close handler at module level — runs once, guaranteed
+  // Register close handler — Rust handles the actual close logic.
+  // JS only shows the "Cerrando..." overlay when there's a project.
   try {
-    const w = getCurrentWindow();
-    console.log("[close] Registering onCloseRequested at module level. Window:", w.label);
-
-    w.onCloseRequested((event) => {
-      const path = projectPath; // read directly, no untrack needed
-      console.log("[close] ── Fired! path=%s typeof=%s", path, typeof path);
-
-      if (!path) {
-        console.log("[close] No project → calling destroy()");
-        try {
-          getCurrentWindow().destroy();
-          console.log("[close] destroy() called successfully");
-        } catch (e) {
-          console.error("[close] destroy() FAILED:", e);
-        }
-        return;
-      }
-
-      if (!gitEnabled || closing) return;
+    getCurrentWindow().onCloseRequested((event) => {
+      const path = projectPath;
+      if (!path || !gitEnabled || closing) return;
 
       closing = true;
       closeStep = "Cerrando aplicación...";
       event.preventDefault();
 
+      // Rust will destroy the window after checkpoint
       (async () => {
-        await new Promise(r => setTimeout(r, 500));
-        try { getCurrentWindow().destroy(); } catch (e) {}
+        await new Promise(r => setTimeout(r, 800));
+        try { getCurrentWindow().destroy(); } catch { /* Rust already closed it */ }
       })();
     });
-  } catch (err) {
-    console.error("[close] Module-level registration failed:", err);
-  }
+  } catch { /* Not in Tauri */ }
 
   /** Editor component reference — exposes setContent(html) + heading control. */
   let editorRef = $state<{
@@ -3207,12 +3191,6 @@
             onclick={importarProyectoHandler}
           >
             {t("import.button")}
-          </button>
-          <button
-            class="btn-secondary"
-            onclick={() => getCurrentWindow().destroy()}
-          >
-            ✕ {t("setup.closeApp")}
           </button>
         </div>
       </div>

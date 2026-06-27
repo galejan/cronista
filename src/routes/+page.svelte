@@ -3961,7 +3961,7 @@
 
   .editor-toolbar {
     display: grid;
-    grid-template-columns: 1fr auto auto 1fr;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     padding: 0 1rem;
     border-bottom: 1px solid #e2e8f0;

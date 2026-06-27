@@ -14,7 +14,11 @@
 | **Git invisible** | Cada cierre de la aplicación crea un checkpoint automático. Historial completo sin intervención manual. |
 | **TipTap como motor** | Editor WYSIWYG con títulos semánticos (H1, H2). Limpio, sin distracciones de formato. |
 | **Exportación integrada** | Permite exportar el proyecto completo en `.zip` o compartir solo los capítulos en un único `.md`. |
-| **Configuración editable** | Tipografía, identidad Git y repositorio remoto se pueden cambiar en cualquier momento desde el panel de herramientas (⚙️ Configuración). Sin necesidad de crear un proyecto nuevo. |
+| **Configuración editable** | Tipografía, pestañas visibles, intervalo de autoguardado, identidad Git y repositorio remoto. Todo modificable en cualquier momento desde el panel de herramientas (⚙️ Configuración). |
+| **Temas visuales** | 4 temas: Oscuro Nórdico, Oscuro Amatista, Claro Nórdico y Claro Sepia. Con live preview y transiciones suaves. |
+| **Estadísticas de sesión** | Tiempo de escritura, palabras añadidas y sesiones totales. Acumuladas por capítulo y a nivel global. |
+| **Tramas** | Agrupa capítulos en líneas argumentales. Arrastra y suelta para reorganizar. |
+| **Multimedia** | Carpeta `media/` para imágenes del proyecto. Visor integrado y soporte para pinear. |
 | **Accesibilidad** | Zoom de interfaz con `Ctrl++` / `Ctrl+-`. Tres niveles para adaptarse a cada vista. |
 
 ---
@@ -29,7 +33,7 @@ Cada vez que se cierra la aplicación, se crea un checkpoint automático: un com
 
 Los checkpoints son acumulativos: con el tiempo construyen un historial completo de la novela sin intervención manual.
 
-> **Nota:** El guardado automático (cada 20 segundos) y el guardado manual (`Ctrl+S`) escriben los cambios en el disco. Los checkpoints de Git solo se generan al cerrar la aplicación, como copia de seguridad del trabajo de la sesión.
+> **Nota:** El guardado automático (configurable a 1, 5 o 10 minutos) y el guardado manual (`Ctrl+S`) escriben los cambios en el disco. Los checkpoints de Git solo se generan al cerrar la aplicación, como copia de seguridad del trabajo de la sesión.
 
 ### ¿Qué pasa si no se tiene Git instalado?
 
@@ -64,11 +68,13 @@ Al crear un proyecto, o desde el panel de herramientas (⚙️ **Configuración*
 
 ## Configuración del proyecto
 
-Una vez creado el proyecto, toda la configuración se puede modificar desde el panel de herramientas (⚙️ Configuración). El diálogo tiene tres pestañas:
+Una vez creado el proyecto, toda la configuración se puede modificar desde el panel de herramientas (⚙️ Configuración). El diálogo tiene varias pestañas:
 
 | Pestaña | Qué permite cambiar |
 |---------|-------------------|
 | **Tipografía** | Cambiar entre monoespaciada, con serifa (Serif) o sin serifa (Sans-serif). Se aplica a todo el texto del editor. |
+| **Pestañas visibles** | Ocultar Personajes, Lugares, Línea de tiempo, Notas o Multimedia del panel lateral. Capítulos siempre visible. |
+| **Autoguardado** | Elegir cada cuánto se guarda automáticamente: 1, 5 o 10 minutos (por defecto 5). |
 | **Identidad Git** | Nombre, email y usuario de GitHub. Estos datos se usan para firmar los checkpoints automáticos de Git. |
 | **Remoto** | La URL SSH del repositorio remoto. Permite cambiar de repositorio o corregir la URL sin perder el historial. |
 
@@ -174,13 +180,13 @@ Cada proyecto creado con Cron-Insta es una carpeta en el disco con esta organiza
 ```
 Mi Novela/
 ├── capitulos/            # Archivos .md (HTML enriquecido de TipTap)
-│   ├── metadata.json     # Índice y orden de capítulos
-│   ├── Capítulo 1.md
-│   └── Capítulo 2.md
+│   ├── 01_prologo.md
+│   └── 02_la_llegada.md
 ├── personajes/           # Fichas de personaje en .json
 ├── notas/                # Notas de investigación en .json
-├── timeline.json         # Eventos de la línea de tiempo
-├── .config/              # Configuración del proyecto (fuente, idioma)
+├── lugares/              # Fichas de lugares en .json
+├── media/                # Imágenes del proyecto (png, jpg, webp…)
+├── .config/              # Configuración y estado (metadata.json, stats.json)
 ├── .git/                 # Repositorio Git (si está instalado)
 └── exportaciones/        # Archivos generados por Exportar y Compartir
 ```
@@ -205,22 +211,21 @@ Mi Novela/
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>←</kbd> | Colapsar panel lateral (modo escritura) |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>→</kbd> | Panel lateral a pantalla completa (modo referencia) |
 | <kbd>Ctrl</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | Reducir / ampliar panel lateral (20 % – 100 %) |
-| <kbd>Ctrl</kbd> + <kbd>T</kbd> | Navegar pestañas (capítulos → personajes → notas) |
-| <kbd>Ctrl</kbd> + <kbd>L</kbd> | Mostrar / ocultar línea de tiempo |
-| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Anclar / desanclar ficha del personaje seleccionado |
+| <kbd>Ctrl</kbd> + <kbd>T</kbd> | Navegar pestañas visibles |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Pinear/depinear elemento activo (personaje, nota, lugar o imagen) |
 | <kbd>Ctrl</kbd> + <kbd>I</kbd> | Importar proyecto desde ZIP |
 | <kbd>↑</kbd> / <kbd>↓</kbd> / <kbd>Inicio</kbd> / <kbd>Fin</kbd> | Navegar listas del panel lateral |
 | <kbd>Ctrl</kbd> + <kbd>P</kbd> | Mostrar / ocultar panel de herramientas |
 | <kbd>Ctrl</kbd> + <kbd>S</kbd> | Guardar ahora |
 | <kbd>Ctrl</kbd> + <kbd>N</kbd> | Nuevo capítulo |
 | <kbd>Alt</kbd> + <kbd>←</kbd> / <kbd>→</kbd> | Capítulo anterior / siguiente |
-| <kbd>Ctrl</kbd> + <kbd>O</kbd> | Abrir otro proyecto (cierra el actual) |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> | Nuevo proyecto (cierra el actual) |
+| <kbd>Ctrl</kbd> + <kbd>O</kbd> | Abrir otro proyecto |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> | Nuevo proyecto |
 | <kbd>Ctrl</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> | Subir / bajar nivel de título |
 | <kbd>Ctrl</kbd> + <kbd>D</kbd> | Insertar guion de diálogo (`—`) |
 | <kbd>Ctrl</kbd> + <kbd>+</kbd> / <kbd>-</kbd> | Aumentar / reducir tamaño de letra |
 | <kbd>F11</kbd> | Pantalla completa |
-| <kbd>F1</kbd> o <kbd>?</kbd> | Mostrar / ocultar panel de ayuda |
+| <kbd>F1</kbd> o <kbd>?</kbd> | Mostrar panel de ayuda |
 
 ---
 
@@ -233,7 +238,12 @@ El backend Rust expone los siguientes comandos Tauri:
 - **Capítulos**: `guardar_capitulo`, `cargar_capitulo`, `crear_capitulo`, `eliminar_capitulo`, `cargar_indice`
 - **Personajes**: `listar_personajes`, `crear_personaje`, `cargar_personaje`, `actualizar_personaje`, `eliminar_personaje`
 - **Notas**: `listar_notas`, `crear_nota`, `cargar_nota`, `eliminar_nota`
+- **Lugares**: `listar_lugares`, `crear_lugar`, `cargar_lugar`, `actualizar_lugar`, `eliminar_lugar`
+- **Tramas**: `crear_trama`, `eliminar_trama`, `asignar_capitulo_trama`
 - **Timeline**: `cargar_timeline`, `agregar_evento_timeline`, `actualizar_evento_timeline`, `reordenar_timeline`, `eliminar_evento_timeline`
+- **Media**: `listar_media`, `copiar_a_media`, `leer_media_base64`
+- **Estadísticas**: `iniciar_sesion_escritura`, `cargar_estadisticas`
+- **Configuración**: `actualizar_config_proyecto`, `actualizar_fuente_proyecto`
 - **Exportación**: `exportar_proyecto_zip`, `exportar_proyecto_md`, `importar_proyecto`, `eliminar_directorio_git`
 
 ---

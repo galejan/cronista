@@ -204,7 +204,9 @@ const translations: Record<Lang, Record<string, string>> = {
     // ── Notes ──────────────────────────────────────────────
     "notes.empty": "Sin notas aún.",
     "notes.titleLabel": "Título de la nota",
+    "notes.titlePlaceholder": "Título de la nota",
     "notes.titlePrompt": "Título de la nota:",
+    "notes.create": "Crear nota",
     "notes.save": "Guardar",
     "notes.close": "Cerrar",
     "notes.deleteTitle": "Eliminar nota",
@@ -629,7 +631,9 @@ const translations: Record<Lang, Record<string, string>> = {
     // ── Notes ──────────────────────────────────────────────
     "notes.empty": "No notes yet.",
     "notes.titleLabel": "Note title",
+    "notes.titlePlaceholder": "Note title",
     "notes.titlePrompt": "Note title:",
+    "notes.create": "Create note",
     "notes.save": "Save",
     "notes.close": "Close",
     "notes.deleteTitle": "Delete note",

@@ -582,6 +582,8 @@
   let notas = $state<{ id: string; title: string }[]>([]);
   let activeNote = $state("");
   let notaTitulo = $state("");
+  let notaFormVisible = $state(false);
+  let notaNuevoTitulo = $state("");
 
   // ── Timeline state ──────────────────────────────────────────
   let timeline = $state<Record<string, any>[]>([]);
@@ -1629,8 +1631,8 @@
   }
 
   async function crearNotaHandler(): Promise<void> {
-    const title = await pickText(t("notes.titlePrompt"));
-    if (!title?.trim()) return;
+    const title = notaNuevoTitulo.trim();
+    if (!title) return;
     const id = title
       .trim()
       .toLowerCase()
@@ -1639,7 +1641,9 @@
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
     try {
-      await crearNota(projectPath, id, title.trim(), "<p></p>");
+      await crearNota(projectPath, id, title, "<p></p>");
+      notaNuevoTitulo = "";
+      notaFormVisible = false;
       await refreshNotas();
     } catch (e) {
       console.error("[cron-insta] Create note failed:", e);
@@ -2635,9 +2639,25 @@
             </div>
           {/if}
 
-          <button class="btn-add" onclick={() => crearNotaHandler()}>
-            <Notepad size={16} weight="light" color="currentColor" /> {t("notes.new")}
-          </button>
+          {#if notaFormVisible}
+            <div class="inline-form">
+              <input
+                class="field-input"
+                type="text"
+                placeholder={t("notes.titlePlaceholder")}
+                bind:value={notaNuevoTitulo}
+                onkeydown={(e: KeyboardEvent) => { if (e.key === "Enter") crearNotaHandler(); }}
+              />
+              <div class="form-actions">
+                <button class="btn-sm btn-primary" onclick={crearNotaHandler}>{t("notes.create")}</button>
+                <button class="btn-sm" onclick={() => notaFormVisible = false}>{t("common.cancel")}</button>
+              </div>
+            </div>
+          {:else}
+            <button class="btn-add" onclick={() => notaFormVisible = true}>
+              <Notepad size={16} weight="light" color="currentColor" /> {t("notes.new")}
+            </button>
+          {/if}
         </div>
       {/if}
 
